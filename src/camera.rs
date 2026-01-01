@@ -82,12 +82,12 @@ impl Camera {
     }
 
     pub fn to_gpu(&self) -> GpuCamera {
-        let rotation = self.rotation();
+        let transform = self.transform();
         GpuCamera {
-            position: self.position,
-            forward: rotation.x(),
-            up: rotation.y(),
-            right: rotation.z(),
+            position: transform.position(),
+            forward: transform.x(),
+            up: transform.y(),
+            right: transform.z(),
         }
     }
 }
