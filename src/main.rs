@@ -1,12 +1,21 @@
-use std::sync::Arc;
-
+use crate::camera::{Camera, GpuCamera};
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
+use math::Vector4;
+use std::{sync::Arc, time::Instant};
+
+pub mod camera;
 
 struct App {
+    last_time: Option<Instant>,
+
     output_texture_bind_group_layout: wgpu::BindGroupLayout,
     output_texture: wgpu::TextureView,
     output_texture_id: egui::TextureId,
     output_texture_bind_group: wgpu::BindGroup,
+
+    camera: Camera,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
 
     ray_tracing_pipeline: wgpu::ComputePipeline,
 }
@@ -73,6 +82,41 @@ impl App {
             wgpu::FilterMode::Nearest,
         );
 
+        let camera = Camera::new(Vector4 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        });
+        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: size_of::<GpuCamera>().next_multiple_of(16) as _,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Camera Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Camera Bind Group"),
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
         let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
             env!("OUT_DIR"),
             "/shaders/ray_tracing.wgsl"
@@ -80,7 +124,7 @@ impl App {
         let ray_tracing_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Ray Tracing Pipeline Layout"),
-                bind_group_layouts: &[&output_texture_bind_group_layout],
+                bind_group_layouts: &[&output_texture_bind_group_layout, &camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
         let ray_tracing_pipeline =
@@ -94,10 +138,16 @@ impl App {
             });
 
         Self {
+            last_time: None,
+
             output_texture_bind_group_layout,
             output_texture,
             output_texture_id,
             output_texture_bind_group,
+
+            camera,
+            camera_buffer,
+            camera_bind_group,
 
             ray_tracing_pipeline,
         }
@@ -106,16 +156,22 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
-        let eframe::egui_wgpu::RenderState {
-            device,
-            queue,
-            renderer,
-            ..
-        } = frame.wgpu_render_state().unwrap();
+        let time = Instant::now();
+        let dt = time - self.last_time.unwrap_or(time);
+        self.last_time = Some(time);
+
+        self.camera.update(ctx, dt.as_secs_f32());
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
+                let eframe::egui_wgpu::RenderState {
+                    device,
+                    queue,
+                    renderer,
+                    ..
+                } = frame.wgpu_render_state().unwrap();
+
                 let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
 
                 let width = response.rect.width() as u32;
@@ -140,6 +196,12 @@ impl eframe::App for App {
                     );
                 }
 
+                queue.write_buffer(
+                    &self.camera_buffer,
+                    0,
+                    bytemuck::bytes_of(&self.camera.to_gpu()),
+                );
+
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Command Encoder"),
                 });
@@ -152,6 +214,7 @@ impl eframe::App for App {
 
                     compute_pass.set_pipeline(&self.ray_tracing_pipeline);
                     compute_pass.set_bind_group(0, &self.output_texture_bind_group, &[]);
+                    compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
                     compute_pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
                 }
                 queue.submit(core::iter::once(encoder.finish()));

@@ -1,7 +1,21 @@
+[workspace]
+resolver = "3"
+members = [".", "math"]
+
+[workspace.dependencies]
+bytemuck = "1.24.0"
+serde = "1.0.228"
+math = { path = "math" }
+
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "deny"
+
 [package]
 name = "raytracing"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.33.3", features = ["wgpu"] }
+bytemuck = { workspace = true }
+eframe = { version = "0.33.3", features = ["persistence", "wgpu"] }
+math = { workspace = true }
