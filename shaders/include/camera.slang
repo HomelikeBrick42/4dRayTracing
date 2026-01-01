@@ -4,4 +4,5 @@ struct Camera
     float4 forward;
     float4 up;
     float4 right;
+    float fov;
 }

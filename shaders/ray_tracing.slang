@@ -21,10 +21,11 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
 
     let aspect = float(width) / float(height);
     let uv = ((float2(global_index.xy) + 0.5) / float2(width, height)) * 2.0 - 1.0;
+    let fov_scale = tan(camera.fov * 0.5);
 
     var ray : Ray;
     ray.origin = camera.position;
-    ray.direction = normalize(camera.forward + camera.up * uv.y + camera.right * uv.x * aspect);
+    ray.direction = normalize(camera.forward + camera.up * uv.y * fov_scale + camera.right * uv.x * fov_scale * aspect);
 
     let color = ray.direction.xyz * 0.5 + 0.5;
     output_texture.Store(global_index.xy, float4(color, 1.0));

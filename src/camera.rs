@@ -1,13 +1,14 @@
-use std::f32::consts::TAU;
-
 use bytemuck::NoUninit;
 use eframe::egui;
 use math::{NoE2Rotor, Rotor, Transform, Vector4};
+use std::f32::consts::TAU;
 
 pub struct Camera {
     pub position: Vector4<f32>,
     pub base_rotation: NoE2Rotor,
     pub xy_rotation: f32,
+
+    pub fov: f32,
 
     pub speed: f32,
     pub rotation_speed: f32,
@@ -19,6 +20,8 @@ impl Camera {
             position,
             base_rotation: NoE2Rotor::identity(),
             xy_rotation: 0.0,
+
+            fov: TAU * 0.25,
 
             speed: 1.0,
             rotation_speed: TAU * 0.5,
@@ -32,7 +35,7 @@ impl Camera {
                     self.position += self.base_rotation.x() * self.speed * ts;
                 }
                 if i.key_down(egui::Key::S) {
-                    self.position += self.base_rotation.x() * self.speed * ts;
+                    self.position -= self.base_rotation.x() * self.speed * ts;
                 }
                 if i.key_down(egui::Key::A) {
                     self.position -= self.base_rotation.z() * self.speed * ts;
@@ -73,6 +76,87 @@ impl Camera {
         }
     }
 
+    pub fn ui(&mut self, ui: &mut egui::Ui) {
+        egui::Grid::new("Camera").num_columns(2).show(ui, |ui| {
+            ui.label("Position:");
+            ui.add(egui::DragValue::new(&mut self.position.x).prefix("x:"));
+            ui.add(egui::DragValue::new(&mut self.position.y).prefix("y:"));
+            ui.add(egui::DragValue::new(&mut self.position.z).prefix("z:"));
+            ui.add(egui::DragValue::new(&mut self.position.w).prefix("w:"));
+            ui.end_row();
+
+            ui.label("XY Rotation:");
+            ui.drag_angle(&mut self.xy_rotation);
+            ui.end_row();
+
+            ui.label("Fov:");
+            ui.drag_angle(&mut self.fov);
+            self.fov = self.fov.clamp(0.0, 179f32.to_radians());
+            ui.end_row();
+        });
+
+        ui.collapsing("Computed Transform", |ui| {
+            ui.add_enabled_ui(false, |ui| {
+                egui::Grid::new("Computed Transform")
+                    .num_columns(2)
+                    .show(ui, |ui| {
+                        let transform = self.transform();
+
+                        {
+                            let mut position = transform.position();
+
+                            ui.label("Position:");
+                            ui.add(egui::DragValue::new(&mut position.x).prefix("x:"));
+                            ui.add(egui::DragValue::new(&mut position.y).prefix("y:"));
+                            ui.add(egui::DragValue::new(&mut position.z).prefix("z:"));
+                            ui.add(egui::DragValue::new(&mut position.w).prefix("w:"));
+                            ui.end_row();
+                        }
+                        {
+                            let mut forward = transform.x();
+
+                            ui.label("Forward:");
+                            ui.add(egui::DragValue::new(&mut forward.x).prefix("x:"));
+                            ui.add(egui::DragValue::new(&mut forward.y).prefix("y:"));
+                            ui.add(egui::DragValue::new(&mut forward.z).prefix("z:"));
+                            ui.add(egui::DragValue::new(&mut forward.w).prefix("w:"));
+                            ui.end_row();
+                        }
+                        {
+                            let mut up = transform.y();
+
+                            ui.label("Up:");
+                            ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
+                            ui.add(egui::DragValue::new(&mut up.y).prefix("y:"));
+                            ui.add(egui::DragValue::new(&mut up.z).prefix("z:"));
+                            ui.add(egui::DragValue::new(&mut up.w).prefix("w:"));
+                            ui.end_row();
+                        }
+                        {
+                            let mut right = transform.z();
+
+                            ui.label("Right:");
+                            ui.add(egui::DragValue::new(&mut right.x).prefix("x:"));
+                            ui.add(egui::DragValue::new(&mut right.y).prefix("y:"));
+                            ui.add(egui::DragValue::new(&mut right.z).prefix("z:"));
+                            ui.add(egui::DragValue::new(&mut right.w).prefix("w:"));
+                            ui.end_row();
+                        }
+                        {
+                            let mut ana = transform.w();
+
+                            ui.label("Ana:");
+                            ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));
+                            ui.add(egui::DragValue::new(&mut ana.y).prefix("y:"));
+                            ui.add(egui::DragValue::new(&mut ana.z).prefix("z:"));
+                            ui.add(egui::DragValue::new(&mut ana.w).prefix("w:"));
+                            ui.end_row();
+                        }
+                    });
+            });
+        });
+    }
+
     pub fn rotation(&self) -> Rotor {
         Rotor::from_no_e2_rotor(self.base_rotation).then(Rotor::rotate_xy(self.xy_rotation))
     }
@@ -88,6 +172,7 @@ impl Camera {
             forward: transform.x(),
             up: transform.y(),
             right: transform.z(),
+            fov: self.fov,
         }
     }
 }
@@ -99,4 +184,5 @@ pub struct GpuCamera {
     forward: Vector4<f32>,
     up: Vector4<f32>,
     right: Vector4<f32>,
+    fov: f32,
 }
