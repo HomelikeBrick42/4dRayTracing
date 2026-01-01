@@ -160,9 +160,11 @@ impl eframe::App for App {
         let dt = time - self.last_time.unwrap_or(time);
         self.last_time = Some(time);
 
-        egui::Window::new("Camera").show(ctx, |ui| {
-            self.camera.ui(ui);
-        });
+        egui::Window::new("Camera")
+            .resizable(false)
+            .show(ctx, |ui| {
+                self.camera.ui(ui);
+            });
 
         self.camera.update(ctx, dt.as_secs_f32());
 
