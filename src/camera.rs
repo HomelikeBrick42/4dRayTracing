@@ -77,7 +77,7 @@ impl Camera {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("Camera").num_columns(2).show(ui, |ui| {
+        egui::Grid::new("Camera").show(ui, |ui| {
             ui.label("Position:");
             ui.add(egui::DragValue::new(&mut self.position.x).prefix("x:"));
             ui.add(egui::DragValue::new(&mut self.position.y).prefix("y:"));
@@ -97,62 +97,60 @@ impl Camera {
 
         ui.collapsing("Computed Transform", |ui| {
             ui.add_enabled_ui(false, |ui| {
-                egui::Grid::new("Computed Transform")
-                    .num_columns(2)
-                    .show(ui, |ui| {
-                        let transform = self.transform();
+                egui::Grid::new("Computed Transform").show(ui, |ui| {
+                    let transform = self.transform();
 
-                        {
-                            let mut position = transform.position();
+                    {
+                        let mut position = transform.position();
 
-                            ui.label("Position:");
-                            ui.add(egui::DragValue::new(&mut position.x).prefix("x:"));
-                            ui.add(egui::DragValue::new(&mut position.y).prefix("y:"));
-                            ui.add(egui::DragValue::new(&mut position.z).prefix("z:"));
-                            ui.add(egui::DragValue::new(&mut position.w).prefix("w:"));
-                            ui.end_row();
-                        }
-                        {
-                            let mut forward = transform.x();
+                        ui.label("Position:");
+                        ui.add(egui::DragValue::new(&mut position.x).prefix("x:"));
+                        ui.add(egui::DragValue::new(&mut position.y).prefix("y:"));
+                        ui.add(egui::DragValue::new(&mut position.z).prefix("z:"));
+                        ui.add(egui::DragValue::new(&mut position.w).prefix("w:"));
+                        ui.end_row();
+                    }
+                    {
+                        let mut forward = transform.x();
 
-                            ui.label("Forward:");
-                            ui.add(egui::DragValue::new(&mut forward.x).prefix("x:"));
-                            ui.add(egui::DragValue::new(&mut forward.y).prefix("y:"));
-                            ui.add(egui::DragValue::new(&mut forward.z).prefix("z:"));
-                            ui.add(egui::DragValue::new(&mut forward.w).prefix("w:"));
-                            ui.end_row();
-                        }
-                        {
-                            let mut up = transform.y();
+                        ui.label("Forward:");
+                        ui.add(egui::DragValue::new(&mut forward.x).prefix("x:"));
+                        ui.add(egui::DragValue::new(&mut forward.y).prefix("y:"));
+                        ui.add(egui::DragValue::new(&mut forward.z).prefix("z:"));
+                        ui.add(egui::DragValue::new(&mut forward.w).prefix("w:"));
+                        ui.end_row();
+                    }
+                    {
+                        let mut up = transform.y();
 
-                            ui.label("Up:");
-                            ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
-                            ui.add(egui::DragValue::new(&mut up.y).prefix("y:"));
-                            ui.add(egui::DragValue::new(&mut up.z).prefix("z:"));
-                            ui.add(egui::DragValue::new(&mut up.w).prefix("w:"));
-                            ui.end_row();
-                        }
-                        {
-                            let mut right = transform.z();
+                        ui.label("Up:");
+                        ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
+                        ui.add(egui::DragValue::new(&mut up.y).prefix("y:"));
+                        ui.add(egui::DragValue::new(&mut up.z).prefix("z:"));
+                        ui.add(egui::DragValue::new(&mut up.w).prefix("w:"));
+                        ui.end_row();
+                    }
+                    {
+                        let mut right = transform.z();
 
-                            ui.label("Right:");
-                            ui.add(egui::DragValue::new(&mut right.x).prefix("x:"));
-                            ui.add(egui::DragValue::new(&mut right.y).prefix("y:"));
-                            ui.add(egui::DragValue::new(&mut right.z).prefix("z:"));
-                            ui.add(egui::DragValue::new(&mut right.w).prefix("w:"));
-                            ui.end_row();
-                        }
-                        {
-                            let mut ana = transform.w();
+                        ui.label("Right:");
+                        ui.add(egui::DragValue::new(&mut right.x).prefix("x:"));
+                        ui.add(egui::DragValue::new(&mut right.y).prefix("y:"));
+                        ui.add(egui::DragValue::new(&mut right.z).prefix("z:"));
+                        ui.add(egui::DragValue::new(&mut right.w).prefix("w:"));
+                        ui.end_row();
+                    }
+                    {
+                        let mut ana = transform.w();
 
-                            ui.label("Ana:");
-                            ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));
-                            ui.add(egui::DragValue::new(&mut ana.y).prefix("y:"));
-                            ui.add(egui::DragValue::new(&mut ana.z).prefix("z:"));
-                            ui.add(egui::DragValue::new(&mut ana.w).prefix("w:"));
-                            ui.end_row();
-                        }
-                    });
+                        ui.label("Ana:");
+                        ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));
+                        ui.add(egui::DragValue::new(&mut ana.y).prefix("y:"));
+                        ui.add(egui::DragValue::new(&mut ana.z).prefix("z:"));
+                        ui.add(egui::DragValue::new(&mut ana.w).prefix("w:"));
+                        ui.end_row();
+                    }
+                });
             });
         });
     }
