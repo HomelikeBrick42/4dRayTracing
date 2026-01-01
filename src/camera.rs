@@ -10,8 +10,8 @@ pub struct Camera {
 
     pub fov: f32,
 
-    pub speed: f32,
-    pub rotation_speed: f32,
+    pub move_speed: f32,
+    pub rotate_speed: f32,
 }
 
 impl Camera {
@@ -23,8 +23,8 @@ impl Camera {
 
             fov: TAU * 0.25,
 
-            speed: 1.0,
-            rotation_speed: TAU * 0.5,
+            move_speed: 1.0,
+            rotate_speed: TAU * 0.5,
         }
     }
 
@@ -32,45 +32,45 @@ impl Camera {
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
                 if i.key_down(egui::Key::W) {
-                    self.position += self.base_rotation.x() * self.speed * ts;
+                    self.position += self.base_rotation.x() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::S) {
-                    self.position -= self.base_rotation.x() * self.speed * ts;
+                    self.position -= self.base_rotation.x() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::A) {
-                    self.position -= self.base_rotation.z() * self.speed * ts;
+                    self.position -= self.base_rotation.z() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::D) {
-                    self.position += self.base_rotation.z() * self.speed * ts;
+                    self.position += self.base_rotation.z() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::Q) {
-                    self.position -= self.base_rotation.y() * self.speed * ts;
+                    self.position -= self.base_rotation.y() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::E) {
-                    self.position += self.base_rotation.y() * self.speed * ts;
+                    self.position += self.base_rotation.y() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::R) {
-                    self.position += self.base_rotation.w() * self.speed * ts;
+                    self.position += self.base_rotation.w() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::F) {
-                    self.position -= self.base_rotation.w() * self.speed * ts;
+                    self.position -= self.base_rotation.w() * self.move_speed * ts;
                 }
 
                 if i.key_down(egui::Key::ArrowLeft) {
                     self.base_rotation = self
                         .base_rotation
-                        .then(NoE2Rotor::rotate_xz(-self.rotation_speed * ts));
+                        .then(NoE2Rotor::rotate_xz(-self.rotate_speed * ts));
                 }
                 if i.key_down(egui::Key::ArrowRight) {
                     self.base_rotation = self
                         .base_rotation
-                        .then(NoE2Rotor::rotate_xz(self.rotation_speed * ts));
+                        .then(NoE2Rotor::rotate_xz(self.rotate_speed * ts));
                 }
                 if i.key_down(egui::Key::ArrowUp) {
-                    self.xy_rotation += self.rotation_speed * ts;
+                    self.xy_rotation += self.rotate_speed * ts;
                 }
                 if i.key_down(egui::Key::ArrowDown) {
-                    self.xy_rotation -= self.rotation_speed * ts;
+                    self.xy_rotation -= self.rotate_speed * ts;
                 }
             });
         }
@@ -92,6 +92,14 @@ impl Camera {
             ui.label("Fov:");
             ui.drag_angle(&mut self.fov);
             self.fov = self.fov.clamp(0.0, 179f32.to_radians());
+            ui.end_row();
+
+            ui.label("Move Speed:");
+            ui.add(egui::DragValue::new(&mut self.move_speed));
+            ui.end_row();
+
+            ui.label("Rotate Speed:");
+            ui.drag_angle(&mut self.rotate_speed);
             ui.end_row();
         });
 
