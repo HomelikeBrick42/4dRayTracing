@@ -31,13 +31,14 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
     var color = float3(0.0);
     for (int i = 0; i < 100; i++)
     {
-        let distance = sdf::sphere(ray.origin);
+        let distance = scene_sdf(ray.origin);
 
         if (distance < 0.001)
         {
             let scale = 50.0;
             let kind = sin(ray.origin.x * scale) + sin(ray.origin.y * scale) + sin(ray.origin.z * scale) + sin(ray.origin.w * scale);
-            color = kind > 0.0 ? float3(1.0) : float3(0.5);
+            let normal = sdf::normal(scene_sdf, ray.origin).xyz * 0.5 + 0.5;
+            color = normal * (kind > 0.0 ? float3(1.0) : float3(0.5));
             break;
         }
 
@@ -45,4 +46,9 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
     }
 
     output_texture.Store(global_index.xy, float4(color, 1.0));
+}
+
+float scene_sdf(float4 p)
+{
+    return sdf::torus(p);
 }
