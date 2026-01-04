@@ -83,7 +83,7 @@ impl App {
         );
 
         let camera = Camera::new(Vector4 {
-            x: 0.0,
+            x: -3.0,
             y: 0.0,
             z: 0.0,
             w: 0.0,
