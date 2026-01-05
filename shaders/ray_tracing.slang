@@ -29,6 +29,7 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
     ray.direction = normalize(camera.forward + camera.up * uv.y * fov_scale + camera.right * uv.x * fov_scale * aspect);
 
     var color = float3(0.0);
+    var total_distance = 0.0;
     for (int i = 0; i < 100; i++)
     {
         let distance = scene_sdf(ray.origin);
@@ -43,6 +44,10 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
         }
 
         ray.origin += ray.direction * distance;
+        total_distance += distance;
+
+        if (total_distance >= 1000.0)
+            break;
     }
 
     output_texture.Store(global_index.xy, float4(color, 1.0));
@@ -50,5 +55,10 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
 
 float scene_sdf(float4 p)
 {
-    return sdf::torus(p);
+    let r1 = 3.0;
+    let r2 = 1.0;
+    let plane = abs(p.y) - r2;
+    let cylinder = length(p.xzw) - r1;
+    let torus = sdf::torus(p, r1, r2);
+    return min(max(plane, -cylinder), torus);
 }

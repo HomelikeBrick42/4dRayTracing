@@ -84,7 +84,7 @@ impl App {
 
         let camera = Camera::new(Vector4 {
             x: -3.0,
-            y: 0.0,
+            y: 2.0,
             z: 0.0,
             w: 0.0,
         });
@@ -163,6 +163,7 @@ impl eframe::App for App {
         egui::Window::new("Camera")
             .resizable(false)
             .show(ctx, |ui| {
+                ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f32()));
                 self.camera.ui(ui);
             });
 

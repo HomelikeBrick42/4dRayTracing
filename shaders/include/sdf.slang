@@ -18,11 +18,9 @@ float sphere(float4 p)
     return length(p - position) - radius;
 }
 
-float torus(float4 p)
+float torus(float4 p, float ring_radius, float radius)
 {
     let position = float4(0.0, 0.0, 0.0, 0.0);
-    let ring_radius = 1.0;
-    let radius = 0.5;
     let q = float2(length((p - position).xzw) - ring_radius, (p - position).y);
     return length(q) - radius;
 }
