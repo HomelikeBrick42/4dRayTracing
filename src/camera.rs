@@ -6,7 +6,7 @@ use std::f32::consts::TAU;
 pub struct Camera {
     pub position: Vector4<f32>,
     pub base_rotation: NoE2Rotor,
-    pub xy_rotation: f32,
+    pub xw_rotation: f32,
 
     pub fov: f32,
 
@@ -19,7 +19,7 @@ impl Camera {
         Self {
             position,
             base_rotation: NoE2Rotor::identity(),
-            xy_rotation: 0.0,
+            xw_rotation: 0.0,
 
             fov: TAU * 0.25,
 
@@ -44,16 +44,16 @@ impl Camera {
                     self.position += self.base_rotation.z() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::Q) {
-                    self.position -= self.base_rotation.y() * self.move_speed * ts;
+                    self.position -= self.base_rotation.w() * self.move_speed * ts;
                 }
                 if i.key_down(egui::Key::E) {
-                    self.position += self.base_rotation.y() * self.move_speed * ts;
-                }
-                if i.key_down(egui::Key::R) {
                     self.position += self.base_rotation.w() * self.move_speed * ts;
                 }
+                if i.key_down(egui::Key::R) {
+                    self.position += self.base_rotation.y() * self.move_speed * ts;
+                }
                 if i.key_down(egui::Key::F) {
-                    self.position -= self.base_rotation.w() * self.move_speed * ts;
+                    self.position -= self.base_rotation.y() * self.move_speed * ts;
                 }
 
                 if i.key_down(egui::Key::ArrowLeft) {
@@ -67,10 +67,10 @@ impl Camera {
                         .then(NoE2Rotor::rotate_xz(self.rotate_speed * ts));
                 }
                 if i.key_down(egui::Key::ArrowUp) {
-                    self.xy_rotation += self.rotate_speed * ts;
+                    self.xw_rotation += self.rotate_speed * ts;
                 }
                 if i.key_down(egui::Key::ArrowDown) {
-                    self.xy_rotation -= self.rotate_speed * ts;
+                    self.xw_rotation -= self.rotate_speed * ts;
                 }
             });
         }
@@ -85,8 +85,8 @@ impl Camera {
             ui.add(egui::DragValue::new(&mut self.position.w).prefix("w:"));
             ui.end_row();
 
-            ui.label("XY Rotation:");
-            ui.drag_angle(&mut self.xy_rotation);
+            ui.label("XW Rotation:");
+            ui.drag_angle(&mut self.xw_rotation);
             ui.end_row();
 
             ui.label("Fov:");
@@ -164,7 +164,7 @@ impl Camera {
     }
 
     pub fn rotation(&self) -> Rotor {
-        Rotor::from_no_e2_rotor(self.base_rotation).then(Rotor::rotate_xy(self.xy_rotation))
+        Rotor::from_no_e2_rotor(self.base_rotation).then(Rotor::rotate_xw(self.xw_rotation))
     }
 
     pub fn transform(&self) -> Transform {
@@ -176,7 +176,7 @@ impl Camera {
         GpuCamera {
             position: transform.position(),
             forward: transform.x(),
-            up: transform.y(),
+            up: transform.w(),
             right: transform.z(),
             fov: self.fov,
         }

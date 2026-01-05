@@ -57,8 +57,8 @@ float scene_sdf(float4 p)
 {
     let r1 = 3.0;
     let r2 = 1.0;
-    let plane = abs(p.y) - r2;
-    let cylinder = length(p.xzw) - r1;
+    let plane = abs(p.w) - r2;
+    let cylinder = length(p.xyz) - r1;
     let torus = sdf::torus(p, r1, r2);
     return min(max(plane, -cylinder), torus);
 }

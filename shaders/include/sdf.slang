@@ -21,16 +21,8 @@ float sphere(float4 p)
 float torus(float4 p, float ring_radius, float radius)
 {
     let position = float4(0.0, 0.0, 0.0, 0.0);
-    let q = float2(length((p - position).xzw) - ring_radius, (p - position).y);
+    let q = float2(length((p - position).xyz) - ring_radius, (p - position).w);
     return length(q) - radius;
-}
-
-float cylinder(float4 p)
-{
-    let radius = 0.6;
-    let height = 1.0;
-    let d = abs(float2(length(p.xzw), p.y)) - float2(radius, height);
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
 }
