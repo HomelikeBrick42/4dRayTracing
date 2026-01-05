@@ -8,6 +8,12 @@ pub mod camera;
 
 #[derive(Debug, Clone, Copy, NoUninit)]
 #[repr(C)]
+struct ObjectsInfo {
+    wormholes_count: u32,
+}
+
+#[derive(Debug, Clone, Copy, NoUninit)]
+#[repr(C)]
 struct Wormhole {
     position: Vector3<f32>,
     throat_size: f32,
@@ -28,10 +34,13 @@ struct App {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
 
+    objects_info_buffer: wgpu::Buffer,
+
     wormholes: Vec<Wormhole>,
     wormholes_buffer: wgpu::Buffer,
-    wormholes_bind_group_layout: wgpu::BindGroupLayout,
-    wormholes_bind_group: wgpu::BindGroup,
+
+    objects_bind_group_layout: wgpu::BindGroupLayout,
+    objects_bind_group: wgpu::BindGroup,
 
     ray_tracing_pipeline: wgpu::ComputePipeline,
 }
@@ -79,18 +88,25 @@ fn wormholes_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
     })
 }
 
-fn wormholes_bind_group(
+fn objects_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
+    objects_info_buffer: &wgpu::Buffer,
     wormholes_buffer: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Wormholes Bind Group"),
+        label: Some("Objects Bind Group"),
         layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wormholes_buffer.as_entire_binding(),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: objects_info_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wormholes_buffer.as_entire_binding(),
+            },
+        ],
     })
 }
 
@@ -163,6 +179,13 @@ impl App {
             }],
         });
 
+        let objects_info_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Objects Info Buffer"),
+            size: size_of::<ObjectsInfo>().next_multiple_of(16) as _,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let wormholes = vec![Wormhole {
             position: Vector3 {
                 x: 0.0,
@@ -172,22 +195,39 @@ impl App {
             throat_size: 3.0,
         }];
         let wormholes_buffer = wormholes_buffer(device, wormholes.len());
-        let wormholes_bind_group_layout =
+
+        let objects_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Wormholes Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                label: Some("Objects Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
             });
-        let wormholes_bind_group =
-            wormholes_bind_group(device, &wormholes_bind_group_layout, &wormholes_buffer);
+        let objects_bind_group = objects_bind_group(
+            device,
+            &objects_bind_group_layout,
+            &objects_info_buffer,
+            &wormholes_buffer,
+        );
 
         let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
             env!("OUT_DIR"),
@@ -199,7 +239,7 @@ impl App {
                 bind_group_layouts: &[
                     &output_texture_bind_group_layout,
                     &camera_bind_group_layout,
-                    &wormholes_bind_group_layout,
+                    &objects_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -228,10 +268,13 @@ impl App {
             camera_buffer,
             camera_bind_group,
 
+            objects_info_buffer,
+
             wormholes,
             wormholes_buffer,
-            wormholes_bind_group_layout,
-            wormholes_bind_group,
+
+            objects_bind_group_layout,
+            objects_bind_group,
 
             ray_tracing_pipeline,
         }
@@ -240,6 +283,13 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
+        let eframe::egui_wgpu::RenderState {
+            device,
+            queue,
+            renderer,
+            ..
+        } = frame.wgpu_render_state().unwrap();
+
         let time = Instant::now();
         let dt = time - self.last_time.unwrap_or(time);
         self.last_time = Some(time);
@@ -310,13 +360,6 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                let eframe::egui_wgpu::RenderState {
-                    device,
-                    queue,
-                    renderer,
-                    ..
-                } = frame.wgpu_render_state().unwrap();
-
                 let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
 
                 let width = response.rect.width() as u32;
@@ -343,45 +386,6 @@ impl eframe::App for App {
                     );
                 }
 
-                queue.write_buffer(
-                    &self.camera_buffer,
-                    0,
-                    bytemuck::bytes_of(&self.camera.to_gpu(self.wormholes.len() as _)),
-                );
-
-                if self.wormholes.len() * size_of::<Wormhole>() > self.wormholes_buffer.size() as _
-                {
-                    self.wormholes_buffer = wormholes_buffer(device, self.wormholes.len());
-                    self.wormholes_bind_group = wormholes_bind_group(
-                        device,
-                        &self.wormholes_bind_group_layout,
-                        &self.wormholes_buffer,
-                    );
-                }
-                queue.write_buffer(
-                    &self.wormholes_buffer,
-                    0,
-                    bytemuck::cast_slice(&self.wormholes),
-                );
-
-                let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Command Encoder"),
-                });
-                {
-                    let mut compute_pass =
-                        encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                            label: Some("Compute Pass"),
-                            timestamp_writes: None,
-                        });
-
-                    compute_pass.set_pipeline(&self.ray_tracing_pipeline);
-                    compute_pass.set_bind_group(0, &self.output_texture_bind_group, &[]);
-                    compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-                    compute_pass.set_bind_group(2, &self.wormholes_bind_group, &[]);
-                    compute_pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
-                }
-                queue.submit(core::iter::once(encoder.finish()));
-
                 ui.painter().image(
                     self.output_texture_id,
                     response.rect,
@@ -389,6 +393,68 @@ impl eframe::App for App {
                     egui::Color32::WHITE,
                 );
             });
+
+        {
+            {
+                // Camera
+                queue.write_buffer(
+                    &self.camera_buffer,
+                    0,
+                    bytemuck::bytes_of(&self.camera.to_gpu()),
+                );
+
+                let mut objects_resized = false;
+
+                queue.write_buffer(
+                    &self.objects_info_buffer,
+                    0,
+                    bytemuck::bytes_of(&ObjectsInfo {
+                        wormholes_count: self.wormholes.len() as _,
+                    }),
+                );
+
+                if self.wormholes.len() * size_of::<Wormhole>() > self.wormholes_buffer.size() as _
+                {
+                    self.wormholes_buffer = wormholes_buffer(device, self.wormholes.len());
+                    objects_resized = true;
+                }
+                queue.write_buffer(
+                    &self.wormholes_buffer,
+                    0,
+                    bytemuck::cast_slice(&self.wormholes),
+                );
+
+                if objects_resized {
+                    self.objects_bind_group = objects_bind_group(
+                        device,
+                        &self.objects_bind_group_layout,
+                        &self.objects_info_buffer,
+                        &self.wormholes_buffer,
+                    );
+                }
+            }
+
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Compute Pass"),
+                    timestamp_writes: None,
+                });
+
+                compute_pass.set_pipeline(&self.ray_tracing_pipeline);
+                compute_pass.set_bind_group(0, &self.output_texture_bind_group, &[]);
+                compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                compute_pass.set_bind_group(2, &self.objects_bind_group, &[]);
+                compute_pass.dispatch_workgroups(
+                    self.output_texture_width.div_ceil(16),
+                    self.output_texture_height.div_ceil(16),
+                    1,
+                );
+            }
+            queue.submit(core::iter::once(encoder.finish()));
+        }
 
         ctx.request_repaint();
     }

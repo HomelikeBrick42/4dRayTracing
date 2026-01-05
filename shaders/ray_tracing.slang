@@ -2,6 +2,7 @@ import include.camera;
 import include.ray;
 import include.sdf;
 import include.wormhole;
+import include.objects_info;
 
 [vk::binding(0, 0)]
 [format("bgra8")]
@@ -11,6 +12,9 @@ WTexture2D output_texture;
 ConstantBuffer<Camera> camera;
 
 [vk::binding(0, 2)]
+ConstantBuffer<ObjectsInfo> objects_info;
+
+[vk::binding(1, 2)]
 StructuredBuffer<Wormhole> wormholes;
 
 [shader("compute")]
@@ -63,13 +67,13 @@ float scene_sdf(float4 p)
     let plane = abs(p.w) - throat_length;
 
     var d = plane;
-    for (var i = 0; i < camera.wormholes_count; i++)
+    for (var i = 0; i < objects_info.wormholes_count; i++)
     {
         let wormhole = wormholes[i];
         let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
         d = max(d, -cylinder);
     }
-    for (var i = 0; i < camera.wormholes_count; i++)
+    for (var i = 0; i < objects_info.wormholes_count; i++)
     {
         let wormhole = wormholes[i];
         let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);

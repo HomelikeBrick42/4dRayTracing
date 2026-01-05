@@ -187,7 +187,7 @@ impl Camera {
         Transform::translation(self.position).then(Transform::from_rotor(self.rotation()))
     }
 
-    pub fn to_gpu(&self, wormholes_count: u32) -> GpuCamera {
+    pub fn to_gpu(&self) -> GpuCamera {
         let transform = self.transform();
         GpuCamera {
             position: transform.position(),
@@ -195,7 +195,6 @@ impl Camera {
             up: transform.w(),
             right: transform.z(),
             fov: self.fov,
-            wormholes_count,
         }
     }
 }
@@ -208,5 +207,4 @@ pub struct GpuCamera {
     up: Vector4<f32>,
     right: Vector4<f32>,
     fov: f32,
-    wormholes_count: u32,
 }
