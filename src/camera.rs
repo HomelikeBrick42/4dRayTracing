@@ -129,7 +129,7 @@ impl Camera {
                         ui.end_row();
                     }
                     {
-                        let mut up = transform.y();
+                        let mut up = transform.w();
 
                         ui.label("Up:");
                         ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
@@ -149,7 +149,7 @@ impl Camera {
                         ui.end_row();
                     }
                     {
-                        let mut ana = transform.w();
+                        let mut ana = transform.y();
 
                         ui.label("Ana:");
                         ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));
