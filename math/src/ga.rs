@@ -10,23 +10,23 @@ ga_generator::ga! {
 
     group Scalar = s;
 
-    group VgaNoE2Vector      = e1 + e3 + e4;
-    group VgaNoE2Bivector    = VgaNoE2Vector ^ VgaNoE2Vector;
-    group VgaNoE2Trivector   = VgaNoE2Vector ^ VgaNoE2Bivector;
-    group VgaNoE2Quadvector  = VgaNoE2Vector ^ VgaNoE2Trivector;
-    group VgaNoE2Pentavector = VgaNoE2Vector ^ VgaNoE2Quadvector;
+    group VgaNoE4Vector      = e1 + e2 + e3;
+    group VgaNoE4Bivector    = VgaNoE4Vector ^ VgaNoE4Vector;
+    group VgaNoE4Trivector   = VgaNoE4Vector ^ VgaNoE4Bivector;
+    group VgaNoE4Quadvector  = VgaNoE4Vector ^ VgaNoE4Trivector;
+    group VgaNoE4Pentavector = VgaNoE4Vector ^ VgaNoE4Quadvector;
 
-    group NoE2Rotor = Scalar + VgaNoE2Bivector + VgaNoE2Quadvector;
+    group NoE4Rotor = Scalar + VgaNoE4Bivector + VgaNoE4Quadvector;
 
-    fn rotor_no_e2_then(a: NoE2Rotor, b: NoE2Rotor) -> NoE2Rotor {
+    fn rotor_no_e4_then(a: NoE4Rotor, b: NoE4Rotor) -> NoE4Rotor {
         return b * a;
     }
 
-    fn rotor_no_e2_reverse(rotor: NoE2Rotor) -> NoE2Rotor {
+    fn rotor_no_e4_reverse(rotor: NoE4Rotor) -> NoE4Rotor {
         return ~rotor;
     }
 
-    fn rotate_no_e2_direction(rotor: NoE2Rotor, x: Scalar, y: Scalar, z: Scalar, w: Scalar) -> [Scalar, Scalar, Scalar, Scalar] {
+    fn rotate_no_e4_direction(rotor: NoE4Rotor, x: Scalar, y: Scalar, z: Scalar, w: Scalar) -> [Scalar, Scalar, Scalar, Scalar] {
         let x = e1 - x*e0;
         let y = e2 - y*e0;
         let z = e3 - z*e0;
@@ -50,7 +50,7 @@ ga_generator::ga! {
         ];
     }
 
-    fn rotor_no_e2_x(rotor: NoE2Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
+    fn rotor_no_e4_x(rotor: NoE4Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
         let x = e1 - 1*e0;
         let y = e2 - 0*e0;
         let z = e3 - 0*e0;
@@ -74,7 +74,7 @@ ga_generator::ga! {
         ];
     }
 
-    fn rotor_no_e2_y(rotor: NoE2Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
+    fn rotor_no_e4_y(rotor: NoE4Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
         let x = e1 - 0*e0;
         let y = e2 - 1*e0;
         let z = e3 - 0*e0;
@@ -98,7 +98,7 @@ ga_generator::ga! {
         ];
     }
 
-    fn rotor_no_e2_z(rotor: NoE2Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
+    fn rotor_no_e4_z(rotor: NoE4Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
         let x = e1 - 0*e0;
         let y = e2 - 0*e0;
         let z = e3 - 1*e0;
@@ -122,7 +122,7 @@ ga_generator::ga! {
         ];
     }
 
-    fn rotor_no_e2_w(rotor: NoE2Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
+    fn rotor_no_e4_w(rotor: NoE4Rotor) -> [Scalar, Scalar, Scalar, Scalar] {
         let x = e1 - 0*e0;
         let y = e2 - 0*e0;
         let z = e3 - 0*e0;
@@ -353,11 +353,21 @@ ga_generator::ga! {
     }
 }
 
-impl NoE2Rotor {
+impl NoE4Rotor {
     #[inline]
     pub fn identity() -> Self {
         Self {
             s: 1.0,
+            ..Self::zero()
+        }
+    }
+
+    #[inline]
+    pub fn rotate_xy(angle: f32) -> Self {
+        let (sin, cos) = (angle * 0.5).sin_cos();
+        Self {
+            s: cos,
+            e1e2: sin,
             ..Self::zero()
         }
     }
@@ -373,39 +383,29 @@ impl NoE2Rotor {
     }
 
     #[inline]
-    pub fn rotate_xw(angle: f32) -> Self {
+    pub fn rotate_yz(angle: f32) -> Self {
         let (sin, cos) = (angle * 0.5).sin_cos();
         Self {
             s: cos,
-            e1e4: sin,
-            ..Self::zero()
-        }
-    }
-
-    #[inline]
-    pub fn rotate_zw(angle: f32) -> Self {
-        let (sin, cos) = (angle * 0.5).sin_cos();
-        Self {
-            s: cos,
-            e3e4: sin,
+            e2e3: sin,
             ..Self::zero()
         }
     }
 
     #[inline]
     pub fn then(self, then: Self) -> Self {
-        rotor_no_e2_then(self, then)
+        rotor_no_e4_then(self, then)
     }
 
     #[inline]
     pub fn reverse(self) -> Self {
-        rotor_no_e2_reverse(self)
+        rotor_no_e4_reverse(self)
     }
 
     #[inline]
     pub fn transform_direction(self, direction: Vector4<f32>) -> Vector4<f32> {
         let (Scalar { s: x }, Scalar { s: y }, Scalar { s: z }, Scalar { s: w }) =
-            rotate_no_e2_direction(
+            rotate_no_e4_direction(
                 self,
                 Scalar { s: direction.x },
                 Scalar { s: direction.y },
@@ -418,28 +418,28 @@ impl NoE2Rotor {
     #[inline]
     pub fn x(self) -> Vector4<f32> {
         let (Scalar { s: x }, Scalar { s: y }, Scalar { s: z }, Scalar { s: w }) =
-            rotor_no_e2_x(self);
+            rotor_no_e4_x(self);
         Vector4 { x, y, z, w }
     }
 
     #[inline]
     pub fn y(self) -> Vector4<f32> {
         let (Scalar { s: x }, Scalar { s: y }, Scalar { s: z }, Scalar { s: w }) =
-            rotor_no_e2_y(self);
+            rotor_no_e4_y(self);
         Vector4 { x, y, z, w }
     }
 
     #[inline]
     pub fn z(self) -> Vector4<f32> {
         let (Scalar { s: x }, Scalar { s: y }, Scalar { s: z }, Scalar { s: w }) =
-            rotor_no_e2_z(self);
+            rotor_no_e4_z(self);
         Vector4 { x, y, z, w }
     }
 
     #[inline]
     pub fn w(self) -> Vector4<f32> {
         let (Scalar { s: x }, Scalar { s: y }, Scalar { s: z }, Scalar { s: w }) =
-            rotor_no_e2_w(self);
+            rotor_no_e4_w(self);
         Vector4 { x, y, z, w }
     }
 }
@@ -560,21 +560,21 @@ impl Rotor {
     }
 
     #[inline]
-    pub fn from_no_e2_rotor(rotor: NoE2Rotor) -> Self {
-        let NoE2Rotor {
+    pub fn from_no_e4_rotor(rotor: NoE4Rotor) -> Self {
+        let NoE4Rotor {
             s,
+            e1e2,
             e1e3,
-            e1e4,
-            e3e4,
+            e2e3,
         } = rotor;
         Self {
             s,
-            e1e2: 0.0,
+            e1e2,
             e1e3,
-            e1e4,
-            e2e3: 0.0,
+            e1e4: 0.0,
+            e2e3,
             e2e4: 0.0,
-            e3e4,
+            e3e4: 0.0,
             e1e2e3e4: 0.0,
         }
     }

@@ -1,11 +1,11 @@
 use bytemuck::NoUninit;
 use eframe::egui;
-use math::{NoE2Rotor, Rotor, Transform, Vector4};
+use math::{NoE4Rotor, Rotor, Transform, Vector4};
 use std::f32::consts::TAU;
 
 pub struct Camera {
     pub position: Vector4<f32>,
-    pub base_rotation: NoE2Rotor,
+    pub base_rotation: NoE4Rotor,
     pub xw_rotation: f32,
 
     pub fov: f32,
@@ -18,7 +18,7 @@ impl Camera {
     pub fn new(position: Vector4<f32>) -> Self {
         Self {
             position,
-            base_rotation: NoE2Rotor::identity(),
+            base_rotation: NoE4Rotor::identity(),
             xw_rotation: 0.0,
 
             fov: TAU * 0.25,
@@ -59,12 +59,12 @@ impl Camera {
                 if i.key_down(egui::Key::ArrowLeft) {
                     self.base_rotation = self
                         .base_rotation
-                        .then(NoE2Rotor::rotate_xz(-self.rotate_speed * ts));
+                        .then(NoE4Rotor::rotate_xz(-self.rotate_speed * ts));
                 }
                 if i.key_down(egui::Key::ArrowRight) {
                     self.base_rotation = self
                         .base_rotation
-                        .then(NoE2Rotor::rotate_xz(self.rotate_speed * ts));
+                        .then(NoE4Rotor::rotate_xz(self.rotate_speed * ts));
                 }
                 if i.key_down(egui::Key::ArrowUp) {
                     self.xw_rotation += self.rotate_speed * ts;
@@ -180,7 +180,7 @@ impl Camera {
     }
 
     pub fn rotation(&self) -> Rotor {
-        Rotor::from_no_e2_rotor(self.base_rotation).then(Rotor::rotate_xw(self.xw_rotation))
+        Rotor::from_no_e4_rotor(self.base_rotation).then(Rotor::rotate_xw(self.xw_rotation))
     }
 
     pub fn transform(&self) -> Transform {
