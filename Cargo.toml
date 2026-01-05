@@ -17,5 +17,5 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { workspace = true }
-eframe = { version = "0.33.3", features = ["persistence", "wgpu"] }
+eframe = { version = "0.32.0", features = ["persistence", "wgpu"] }
 math = { workspace = true }

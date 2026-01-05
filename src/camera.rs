@@ -23,7 +23,7 @@ impl Camera {
 
             fov: TAU * 0.25,
 
-            move_speed: 1.0,
+            move_speed: 5.0,
             rotate_speed: TAU * 0.5,
         }
     }
@@ -79,10 +79,26 @@ impl Camera {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new("Camera").show(ui, |ui| {
             ui.label("Position:");
-            ui.add(egui::DragValue::new(&mut self.position.x).prefix("x:"));
-            ui.add(egui::DragValue::new(&mut self.position.y).prefix("y:"));
-            ui.add(egui::DragValue::new(&mut self.position.z).prefix("z:"));
-            ui.add(egui::DragValue::new(&mut self.position.w).prefix("w:"));
+            ui.add(
+                egui::DragValue::new(&mut self.position.x)
+                    .prefix("x:")
+                    .speed(0.1),
+            );
+            ui.add(
+                egui::DragValue::new(&mut self.position.y)
+                    .prefix("y:")
+                    .speed(0.1),
+            );
+            ui.add(
+                egui::DragValue::new(&mut self.position.z)
+                    .prefix("z:")
+                    .speed(0.1),
+            );
+            ui.add(
+                egui::DragValue::new(&mut self.position.w)
+                    .prefix("w:")
+                    .speed(0.1),
+            );
             ui.end_row();
 
             ui.label("XW Rotation:");
@@ -95,7 +111,7 @@ impl Camera {
             ui.end_row();
 
             ui.label("Move Speed:");
-            ui.add(egui::DragValue::new(&mut self.move_speed));
+            ui.add(egui::DragValue::new(&mut self.move_speed).speed(0.1));
             ui.end_row();
 
             ui.label("Rotate Speed:");
@@ -171,7 +187,7 @@ impl Camera {
         Transform::translation(self.position).then(Transform::from_rotor(self.rotation()))
     }
 
-    pub fn to_gpu(&self) -> GpuCamera {
+    pub fn to_gpu(&self, wormholes_count: u32) -> GpuCamera {
         let transform = self.transform();
         GpuCamera {
             position: transform.position(),
@@ -179,6 +195,7 @@ impl Camera {
             up: transform.w(),
             right: transform.z(),
             fov: self.fov,
+            wormholes_count,
         }
     }
 }
@@ -191,4 +208,5 @@ pub struct GpuCamera {
     up: Vector4<f32>,
     right: Vector4<f32>,
     fov: f32,
+    wormholes_count: u32,
 }

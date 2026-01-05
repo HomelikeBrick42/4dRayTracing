@@ -1,6 +1,7 @@
 import include.camera;
 import include.ray;
 import include.sdf;
+import include.wormhole;
 
 [vk::binding(0, 0)]
 [format("bgra8")]
@@ -8,6 +9,9 @@ WTexture2D output_texture;
 
 [vk::binding(0, 1)]
 ConstantBuffer<Camera> camera;
+
+[vk::binding(0, 2)]
+StructuredBuffer<Wormhole> wormholes;
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -30,9 +34,9 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
 
     var color = float3(0.0);
     var total_distance = 0.0;
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 1000; i++)
     {
-        let distance = scene_sdf(ray.origin);
+        let distance = abs(scene_sdf(ray.origin));
 
         if (distance < 0.001)
         {
@@ -55,10 +59,22 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
 
 float scene_sdf(float4 p)
 {
-    let r1 = 3.0;
-    let r2 = 1.0;
-    let plane = abs(p.w) - r2;
-    let cylinder = length(p.xyz) - r1;
-    let torus = sdf::torus(p, r1, r2);
-    return min(max(plane, -cylinder), torus);
+    let throat_length = 4.0;
+    let plane = abs(p.w) - throat_length;
+
+    var d = plane;
+    for (var i = 0; i < camera.wormholes_count; i++)
+    {
+        let wormhole = wormholes[i];
+        let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
+        d = max(d, -cylinder);
+    }
+    for (var i = 0; i < camera.wormholes_count; i++)
+    {
+        let wormhole = wormholes[i];
+        let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);
+        d = min(d, torus);
+    }
+
+    return d;
 }

@@ -5,4 +5,5 @@ struct Camera
     float4 up;
     float4 right;
     float fov;
+    uint wormholes_count;
 }
