@@ -373,18 +373,32 @@ impl App {
 
     fn project_spheres(&mut self) {
         for sphere in &mut self.spheres {
-            let distance = Self::wormhole_sdf(&self.wormholes, sphere.position);
-            if f32::abs(distance) < 0.0001 {
-                continue;
+            {
+                let distance = Self::wormhole_sdf(&self.wormholes, sphere.position);
+                let normal =
+                    sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
+
+                if f32::abs(distance) > 0.0001 {
+                    sphere.position -= normal * distance;
+                }
             }
 
-            let normal = sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
-            sphere.position -= normal * distance;
-
-            if normal.square_magnitude() > 0.0 {
-                let old_normal = sphere.rotation.w();
-                let correction_rotation = Rotor::from_to_vector(old_normal, normal);
-                sphere.rotation = sphere.rotation.then(correction_rotation).normalised();
+            {
+                let normal =
+                    sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
+                if normal.square_magnitude() > 0.0 {
+                    let old_normal = sphere.rotation.w().normalised();
+                    let correction_rotation = if (old_normal + normal).square_magnitude() > 0.001 {
+                        Rotor::from_to_vector(old_normal, normal)
+                    } else {
+                        Rotor {
+                            s: 0.0,
+                            e1e4: 1.0,
+                            ..Rotor::zero()
+                        }
+                    };
+                    sphere.rotation = correction_rotation.then(sphere.rotation).normalised();
+                }
             }
         }
     }
@@ -519,6 +533,10 @@ impl eframe::App for App {
                             });
 
                             ui.collapsing("Orientation", |ui| {
+                                if ui.button("Reset Orientation").clicked() {
+                                    sphere.rotation = Rotor::identity();
+                                }
+
                                 ui.add_enabled_ui(false, |ui| {
                                     egui::Grid::new("Orientation").show(ui, |ui| {
                                         {
