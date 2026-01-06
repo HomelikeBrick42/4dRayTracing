@@ -375,10 +375,9 @@ impl App {
         for sphere in &mut self.spheres {
             {
                 let distance = Self::wormhole_sdf(&self.wormholes, sphere.position);
-                let normal =
-                    sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
-
                 if f32::abs(distance) > 0.0001 {
+                    let normal =
+                        sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
                     sphere.position -= normal * distance;
                 }
             }
@@ -388,15 +387,8 @@ impl App {
                     sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
                 if normal.square_magnitude() > 0.0 {
                     let old_normal = sphere.rotation.w().normalised();
-                    let correction_rotation = if (old_normal + normal).square_magnitude() > 0.001 {
-                        Rotor::from_to_vector(old_normal, normal)
-                    } else {
-                        Rotor {
-                            s: 0.0,
-                            e1e4: 1.0,
-                            ..Rotor::zero()
-                        }
-                    };
+                    let correction_rotation =
+                        Rotor::from_to_vector(old_normal, normal * old_normal.dot(normal).signum());
                     sphere.rotation = correction_rotation.then(sphere.rotation).normalised();
                 }
             }

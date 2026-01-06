@@ -1,5 +1,5 @@
 use bytemuck::NoUninit;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -41,6 +41,20 @@ impl Vector2<f32> {
 }
 
 unsafe impl<T: NoUninit> NoUninit for Vector2<T> {}
+
+impl<T> Neg for Vector2<T>
+where
+    T: Neg<Output = T>,
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+}
 
 impl<T> Add<T> for Vector2<T>
 where
@@ -280,6 +294,21 @@ impl Vector3<f32> {
 }
 
 unsafe impl<T: NoUninit> NoUninit for Vector3<T> {}
+
+impl<T> Neg for Vector3<T>
+where
+    T: Neg<Output = T>,
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
+}
 
 impl<T> Add<T> for Vector3<T>
 where
@@ -538,6 +567,22 @@ impl Vector4<f32> {
 }
 
 unsafe impl<T: NoUninit> NoUninit for Vector4<T> {}
+
+impl<T> Neg for Vector4<T>
+where
+    T: Neg<Output = T>,
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: -self.w,
+        }
+    }
+}
 
 impl<T> Add<T> for Vector4<T>
 where
