@@ -386,7 +386,7 @@ impl App {
                 let normal =
                     sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
                 if normal.square_magnitude() > 0.0 {
-                    let old_normal = sphere.rotation.w().normalised();
+                    let old_normal = sphere.rotation.w();
                     let correction_rotation =
                         Rotor::from_to_vector(old_normal, normal * old_normal.dot(normal).signum());
                     sphere.rotation = correction_rotation.then(sphere.rotation).normalised();
