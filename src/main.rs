@@ -424,6 +424,78 @@ impl eframe::App for App {
                 }
             });
 
+        egui::Window::new("Spheres")
+            .resizable(false)
+            .show(ctx, |ui| {
+                if ui.button("New Sphere").clicked() {
+                    self.spheres.push(Sphere {
+                        position: Vector4 {
+                            x: 8.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 6.0,
+                        },
+                        forward: Vector4 {
+                            x: 1.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        up: Vector4 {
+                            x: 0.0,
+                            y: 1.0,
+                            z: 0.0,
+                            w: 0.0,
+                        },
+                        right: Vector4 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 1.0,
+                            w: 0.0,
+                        },
+                    });
+                }
+
+                let mut to_delete = vec![];
+                for (i, sphere) in self.spheres.iter_mut().enumerate() {
+                    ui.push_id(i, |ui| {
+                        ui.collapsing("Sphere", |ui| {
+                            egui::Grid::new("Sphere Grid").show(ui, |ui| {
+                                ui.label("Position:");
+                                ui.add(
+                                    egui::DragValue::new(&mut sphere.position.x)
+                                        .prefix("x:")
+                                        .speed(0.1),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut sphere.position.y)
+                                        .prefix("y:")
+                                        .speed(0.1),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut sphere.position.z)
+                                        .prefix("z:")
+                                        .speed(0.1),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut sphere.position.w)
+                                        .prefix("w:")
+                                        .speed(0.1),
+                                );
+                                ui.end_row();
+
+                                if ui.button("Delete").clicked() {
+                                    to_delete.push(i);
+                                }
+                            });
+                        });
+                    });
+                }
+                for i in to_delete.into_iter().rev() {
+                    self.spheres.remove(i);
+                }
+            });
+
         self.camera.update(ctx, dt.as_secs_f32());
 
         egui::CentralPanel::default()
