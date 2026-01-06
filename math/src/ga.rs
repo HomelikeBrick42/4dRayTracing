@@ -154,9 +154,13 @@ ga_generator::ga! {
 
     group #[derive(Zeroable, Pod, Serialize, Deserialize)] #[repr(C)] Rotor = Scalar + VgaBivector + VgaQuadvector;
 
-    group RotorSquaredMagnitude = Scalar + VgaQuadvector;
-    fn rotor_squared_magnitude(rotor: Rotor) -> RotorSquaredMagnitude {
+    group RotorMagnitude = Scalar + VgaQuadvector;
+    fn rotor_squared_magnitude(rotor: Rotor) -> RotorMagnitude {
         return ~rotor * rotor;
+    }
+
+    fn rotor_normalise(rotor: Rotor, inverse_square_root_magnitude: RotorMagnitude) -> Rotor {
+        return rotor * inverse_square_root_magnitude;
     }
 
     fn rotor_then(a: Rotor, b: Rotor) -> Rotor {
@@ -287,6 +291,10 @@ ga_generator::ga! {
         ];
     }
 
+    fn rotor_from_to_vector(from: VgaVector, to: VgaVector) -> Rotor {
+        return 1 + from * to;
+    }
+
     group PgaVector      = e0 + e1 + e2 + e3 + e4;
     group PgaBivector    = PgaVector ^ PgaVector;
     group PgaTrivector   = PgaVector ^ PgaBivector;
@@ -295,8 +303,8 @@ ga_generator::ga! {
 
     group #[derive(Zeroable, Pod, Serialize, Deserialize)] #[repr(C)] Transform = Scalar + PgaBivector + PgaQuadvector;
 
-    group TransformSquaredMagnitude = Scalar + PgaQuadvector;
-    fn transform_squared_magnitude(transform: Transform) -> TransformSquaredMagnitude {
+    group TransformMagnitude = Scalar + PgaQuadvector;
+    fn transform_squared_magnitude(transform: Transform) -> TransformMagnitude {
         return ~transform * transform;
     }
 
@@ -453,6 +461,26 @@ impl Rotor {
         }
     }
 
+    /// `from` and `to` must be normalised
+    #[inline]
+    pub fn from_to_vector(from: Vector4<f32>, to: Vector4<f32>) -> Self {
+        rotor_from_to_vector(
+            VgaVector {
+                e1: from.x,
+                e2: from.y,
+                e3: from.z,
+                e4: from.w,
+            },
+            VgaVector {
+                e1: to.x,
+                e2: to.y,
+                e3: to.z,
+                e4: to.w,
+            },
+        )
+        .normalised()
+    }
+
     #[inline]
     pub fn rotate_xy(angle: f32) -> Self {
         let (sin, cos) = (angle * 0.5).sin_cos();
@@ -521,6 +549,21 @@ impl Rotor {
     #[inline]
     pub fn reverse(self) -> Self {
         rotor_reverse(self)
+    }
+
+    #[inline]
+    pub fn normalised(self) -> Self {
+        let squared_magnitude = rotor_squared_magnitude(self);
+        let inverse_square_root_magnitude = {
+            let RotorMagnitude { s, e1e2e3e4 } = squared_magnitude;
+            let sum = 1.0 / (s + e1e2e3e4).sqrt();
+            let prod = e1e2e3e4 / (2.0 * (e1e2e3e4 * e1e2e3e4 - s * s));
+            let sqrt_part = (sum * sum - 4.0 * prod).sqrt();
+            let c = (sum + sqrt_part) * 0.5;
+            let d = (sum - sqrt_part) * 0.5;
+            RotorMagnitude { s: c, e1e2e3e4: d }
+        };
+        rotor_normalise(self, inverse_square_root_magnitude)
     }
 
     #[inline]
