@@ -4,4 +4,5 @@ struct Sphere
     float4 forward;
     float4 up;
     float4 right;
+    float4 ana;
 }

@@ -11,13 +11,6 @@ float4 normal(functype(float4)->float f, float4 p)
         f(p + helper.yyyx) - f(p - helper.yyyx)));
 }
 
-float sphere(float4 p)
-{
-    let position = float4(0.0, 0.0, 0.0, 0.0);
-    let radius = 1.0;
-    return length(p - position) - radius;
-}
-
 float torus(float4 p, float ring_radius, float radius)
 {
     let position = float4(0.0, 0.0, 0.0, 0.0);

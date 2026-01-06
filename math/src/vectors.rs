@@ -17,6 +17,29 @@ impl<T> Vector2<T> {
     }
 }
 
+impl Vector2<f32> {
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn square_magnitude(self) -> f32 {
+        self.dot(self)
+    }
+
+    pub fn magnitude(self) -> f32 {
+        self.square_magnitude().sqrt()
+    }
+
+    pub fn normalised(self) -> Self {
+        let magnitude = self.magnitude();
+        if magnitude > 0.000001 {
+            self / self.magnitude()
+        } else {
+            Vector2 { x: 0.0, y: 0.0 }
+        }
+    }
+}
+
 unsafe impl<T: NoUninit> NoUninit for Vector2<T> {}
 
 impl<T> Add<T> for Vector2<T>
@@ -225,6 +248,33 @@ impl<T> Vector3<T> {
             x: f(self.x),
             y: f(self.y),
             z: f(self.z),
+        }
+    }
+}
+
+impl Vector3<f32> {
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+
+    pub fn square_magnitude(self) -> f32 {
+        self.dot(self)
+    }
+
+    pub fn magnitude(self) -> f32 {
+        self.square_magnitude().sqrt()
+    }
+
+    pub fn normalised(self) -> Self {
+        let magnitude = self.magnitude();
+        if magnitude > 0.000001 {
+            self / self.magnitude()
+        } else {
+            Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }
         }
     }
 }
@@ -455,6 +505,34 @@ impl<T> Vector4<T> {
             y: f(self.y),
             z: f(self.z),
             w: f(self.w),
+        }
+    }
+}
+
+impl Vector4<f32> {
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
+    }
+
+    pub fn square_magnitude(self) -> f32 {
+        self.dot(self)
+    }
+
+    pub fn magnitude(self) -> f32 {
+        self.square_magnitude().sqrt()
+    }
+
+    pub fn normalised(self) -> Self {
+        let magnitude = self.magnitude();
+        if magnitude > 0.000001 {
+            self / self.magnitude()
+        } else {
+            Vector4 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                w: 0.0,
+            }
         }
     }
 }

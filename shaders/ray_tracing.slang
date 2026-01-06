@@ -83,10 +83,14 @@ Optional<Hit> hit_sphere(Sphere sphere, Ray ray)
 
     let scale = 100.0;
 
-    let kind = sin(hit.position.x * scale) + sin(hit.position.y * scale) + sin(hit.position.z * scale) + sin(hit.position.w * scale);
-    let normal = (hit.position - sphere.position) / sphere_radius;
-    let projected_normal = float3(dot(normal, sphere.forward), dot(normal, sphere.up), dot(normal, sphere.right));
-    hit.color = (projected_normal * 0.5 + 0.5) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+    let relative_hit_pos = hit.position - sphere.position;
+    let projected_hit_pos = float4(dot(relative_hit_pos, sphere.forward), dot(relative_hit_pos, sphere.up), dot(relative_hit_pos, sphere.right), dot(relative_hit_pos, sphere.ana));
+    let kind = sin(projected_hit_pos.x * scale) + sin(projected_hit_pos.y * scale) + sin(projected_hit_pos.z * scale) + sin(projected_hit_pos.w * scale);
+
+    let normal = relative_hit_pos / sphere_radius;
+    let projected_normal = projected_hit_pos / sphere_radius;
+
+    hit.color = (projected_normal.xyz * 0.5 + 0.5) * (kind > 0.0 ? float3(1.0) : float3(0.5));
     return hit;
 }
 

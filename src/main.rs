@@ -1,10 +1,11 @@
 use crate::camera::{Camera, GpuCamera};
 use bytemuck::NoUninit;
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
-use math::{Vector3, Vector4};
+use math::{Rotor, Vector3, Vector4};
 use std::{sync::Arc, time::Instant};
 
 pub mod camera;
+pub mod sdf;
 
 #[derive(Debug, Clone, Copy, NoUninit)]
 #[repr(C)]
@@ -20,13 +21,20 @@ struct Wormhole {
     throat_size: f32,
 }
 
+#[derive(Debug)]
+struct Sphere {
+    position: Vector4<f32>,
+    rotation: Rotor,
+}
+
 #[derive(Debug, Clone, Copy, NoUninit)]
 #[repr(C)]
-struct Sphere {
+struct GpuSphere {
     position: Vector4<f32>,
     forward: Vector4<f32>,
     up: Vector4<f32>,
     right: Vector4<f32>,
+    ana: Vector4<f32>,
 }
 
 struct App {
@@ -104,7 +112,7 @@ fn wormholes_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
 fn spheres_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Spheres Buffer"),
-        size: (count.max(1) * size_of::<Sphere>()) as _,
+        size: (count.max(1) * size_of::<GpuSphere>()) as _,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })
@@ -230,24 +238,7 @@ impl App {
                 z: 0.0,
                 w: 6.0,
             },
-            forward: Vector4 {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-                w: 0.0,
-            },
-            up: Vector4 {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
-                w: 0.0,
-            },
-            right: Vector4 {
-                x: 0.0,
-                y: 0.0,
-                z: 1.0,
-                w: 0.0,
-            },
+            rotation: Rotor::identity(),
         }];
         let spheres_buffer = spheres_buffer(device, spheres.len());
 
@@ -348,6 +339,55 @@ impl App {
             ray_tracing_pipeline,
         }
     }
+
+    fn wormhole_sdf(wormholes: &[Wormhole], p: Vector4<f32>) -> f32 {
+        let throat_length = 4.0;
+        let plane = f32::abs(p.w) - throat_length;
+
+        let mut d = plane;
+        for wormhole in wormholes {
+            let cylinder = (Vector3 {
+                x: p.x,
+                y: p.y,
+                z: p.z,
+            } - wormhole.position)
+                .magnitude()
+                - (wormhole.throat_size + throat_length);
+            d = f32::max(d, -cylinder);
+        }
+        for wormhole in wormholes {
+            let torus = sdf::torus(
+                p - Vector4 {
+                    x: wormhole.position.x,
+                    y: wormhole.position.y,
+                    z: wormhole.position.z,
+                    w: 0.0,
+                },
+                wormhole.throat_size + throat_length,
+                throat_length,
+            );
+            d = f32::min(d, torus);
+        }
+        d
+    }
+
+    fn project_spheres(&mut self) {
+        for sphere in &mut self.spheres {
+            let distance = Self::wormhole_sdf(&self.wormholes, sphere.position);
+            if f32::abs(distance) < 0.0001 {
+                continue;
+            }
+
+            let normal = sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
+            sphere.position -= normal * distance;
+
+            if normal.square_magnitude() > 0.0 {
+                let old_normal = sphere.rotation.w();
+                let correction_rotation = Rotor::from_to_vector(old_normal, normal);
+                sphere.rotation = sphere.rotation.then(correction_rotation).normalised();
+            }
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -424,6 +464,8 @@ impl eframe::App for App {
                 }
             });
 
+        let mut editing_spheres = false;
+
         egui::Window::new("Spheres")
             .resizable(false)
             .show(ctx, |ui| {
@@ -435,24 +477,7 @@ impl eframe::App for App {
                             z: 0.0,
                             w: 6.0,
                         },
-                        forward: Vector4 {
-                            x: 1.0,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        up: Vector4 {
-                            x: 0.0,
-                            y: 1.0,
-                            z: 0.0,
-                            w: 0.0,
-                        },
-                        right: Vector4 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 1.0,
-                            w: 0.0,
-                        },
+                        rotation: Rotor::identity(),
                     });
                 }
 
@@ -462,32 +487,95 @@ impl eframe::App for App {
                         ui.collapsing("Sphere", |ui| {
                             egui::Grid::new("Sphere Grid").show(ui, |ui| {
                                 ui.label("Position:");
-                                ui.add(
-                                    egui::DragValue::new(&mut sphere.position.x)
-                                        .prefix("x:")
-                                        .speed(0.1),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut sphere.position.y)
-                                        .prefix("y:")
-                                        .speed(0.1),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut sphere.position.z)
-                                        .prefix("z:")
-                                        .speed(0.1),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut sphere.position.w)
-                                        .prefix("w:")
-                                        .speed(0.1),
-                                );
+                                editing_spheres |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut sphere.position.x)
+                                            .prefix("x:")
+                                            .speed(0.1),
+                                    )
+                                    .dragged();
+                                editing_spheres |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut sphere.position.y)
+                                            .prefix("y:")
+                                            .speed(0.1),
+                                    )
+                                    .dragged();
+                                editing_spheres |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut sphere.position.z)
+                                            .prefix("z:")
+                                            .speed(0.1),
+                                    )
+                                    .dragged();
+                                editing_spheres |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut sphere.position.w)
+                                            .prefix("w:")
+                                            .speed(0.1),
+                                    )
+                                    .dragged();
                                 ui.end_row();
-
-                                if ui.button("Delete").clicked() {
-                                    to_delete.push(i);
-                                }
                             });
+
+                            ui.collapsing("Orientation", |ui| {
+                                ui.add_enabled_ui(false, |ui| {
+                                    egui::Grid::new("Orientation").show(ui, |ui| {
+                                        {
+                                            let mut forward = sphere.rotation.x();
+
+                                            ui.label("Forward:");
+                                            ui.add(
+                                                egui::DragValue::new(&mut forward.x).prefix("x:"),
+                                            );
+                                            ui.add(
+                                                egui::DragValue::new(&mut forward.y).prefix("y:"),
+                                            );
+                                            ui.add(
+                                                egui::DragValue::new(&mut forward.z).prefix("z:"),
+                                            );
+                                            ui.add(
+                                                egui::DragValue::new(&mut forward.w).prefix("w:"),
+                                            );
+                                            ui.end_row();
+                                        }
+                                        {
+                                            let mut up = sphere.rotation.y();
+
+                                            ui.label("Up:");
+                                            ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
+                                            ui.add(egui::DragValue::new(&mut up.y).prefix("y:"));
+                                            ui.add(egui::DragValue::new(&mut up.z).prefix("z:"));
+                                            ui.add(egui::DragValue::new(&mut up.w).prefix("w:"));
+                                            ui.end_row();
+                                        }
+                                        {
+                                            let mut right = sphere.rotation.z();
+
+                                            ui.label("Right:");
+                                            ui.add(egui::DragValue::new(&mut right.x).prefix("x:"));
+                                            ui.add(egui::DragValue::new(&mut right.y).prefix("y:"));
+                                            ui.add(egui::DragValue::new(&mut right.z).prefix("z:"));
+                                            ui.add(egui::DragValue::new(&mut right.w).prefix("w:"));
+                                            ui.end_row();
+                                        }
+                                        {
+                                            let mut ana = sphere.rotation.w();
+
+                                            ui.label("Ana:");
+                                            ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));
+                                            ui.add(egui::DragValue::new(&mut ana.y).prefix("y:"));
+                                            ui.add(egui::DragValue::new(&mut ana.z).prefix("z:"));
+                                            ui.add(egui::DragValue::new(&mut ana.w).prefix("w:"));
+                                            ui.end_row();
+                                        }
+                                    });
+                                });
+                            });
+
+                            if ui.button("Delete").clicked() {
+                                to_delete.push(i);
+                            }
                         });
                     });
                 }
@@ -495,6 +583,10 @@ impl eframe::App for App {
                     self.spheres.remove(i);
                 }
             });
+
+        if !editing_spheres {
+            self.project_spheres();
+        }
 
         self.camera.update(ctx, dt.as_secs_f32());
 
@@ -564,11 +656,27 @@ impl eframe::App for App {
                 bytemuck::cast_slice(&self.wormholes),
             );
 
-            if self.spheres.len() * size_of::<Sphere>() > self.spheres_buffer.size() as _ {
+            if self.spheres.len() * size_of::<GpuSphere>() > self.spheres_buffer.size() as _ {
                 self.spheres_buffer = spheres_buffer(device, self.spheres.len());
                 objects_resized = true;
             }
-            queue.write_buffer(&self.spheres_buffer, 0, bytemuck::cast_slice(&self.spheres));
+            queue.write_buffer(
+                &self.spheres_buffer,
+                0,
+                bytemuck::cast_slice(
+                    &self
+                        .spheres
+                        .iter()
+                        .map(|sphere| GpuSphere {
+                            position: sphere.position,
+                            forward: sphere.rotation.x(),
+                            up: sphere.rotation.y(),
+                            right: sphere.rotation.z(),
+                            ana: sphere.rotation.w(),
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+            );
 
             if objects_resized {
                 self.objects_bind_group = objects_bind_group(
