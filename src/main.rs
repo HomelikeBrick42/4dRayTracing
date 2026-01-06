@@ -10,6 +10,7 @@ pub mod camera;
 #[repr(C)]
 struct ObjectsInfo {
     wormholes_count: u32,
+    spheres_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, NoUninit)]
@@ -17,6 +18,15 @@ struct ObjectsInfo {
 struct Wormhole {
     position: Vector3<f32>,
     throat_size: f32,
+}
+
+#[derive(Debug, Clone, Copy, NoUninit)]
+#[repr(C)]
+struct Sphere {
+    position: Vector4<f32>,
+    forward: Vector4<f32>,
+    up: Vector4<f32>,
+    right: Vector4<f32>,
 }
 
 struct App {
@@ -38,6 +48,9 @@ struct App {
 
     wormholes: Vec<Wormhole>,
     wormholes_buffer: wgpu::Buffer,
+
+    spheres: Vec<Sphere>,
+    spheres_buffer: wgpu::Buffer,
 
     objects_bind_group_layout: wgpu::BindGroupLayout,
     objects_bind_group: wgpu::BindGroup,
@@ -88,11 +101,21 @@ fn wormholes_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
     })
 }
 
+fn spheres_buffer(device: &wgpu::Device, count: usize) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("Spheres Buffer"),
+        size: (count.max(1) * size_of::<Sphere>()) as _,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
 fn objects_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     objects_info_buffer: &wgpu::Buffer,
     wormholes_buffer: &wgpu::Buffer,
+    spheres_buffer: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Objects Bind Group"),
@@ -105,6 +128,10 @@ fn objects_bind_group(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: wormholes_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: spheres_buffer.as_entire_binding(),
             },
         ],
     })
@@ -196,6 +223,34 @@ impl App {
         }];
         let wormholes_buffer = wormholes_buffer(device, wormholes.len());
 
+        let spheres = vec![Sphere {
+            position: Vector4 {
+                x: 8.0,
+                y: 0.0,
+                z: 0.0,
+                w: 6.0,
+            },
+            forward: Vector4 {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+                w: 0.0,
+            },
+            up: Vector4 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+                w: 0.0,
+            },
+            right: Vector4 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+                w: 0.0,
+            },
+        }];
+        let spheres_buffer = spheres_buffer(device, spheres.len());
+
         let objects_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Objects Bind Group Layout"),
@@ -220,6 +275,16 @@ impl App {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
         let objects_bind_group = objects_bind_group(
@@ -227,6 +292,7 @@ impl App {
             &objects_bind_group_layout,
             &objects_info_buffer,
             &wormholes_buffer,
+            &spheres_buffer,
         );
 
         let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
@@ -272,6 +338,9 @@ impl App {
 
             wormholes,
             wormholes_buffer,
+
+            spheres,
+            spheres_buffer,
 
             objects_bind_group_layout,
             objects_bind_group,
@@ -395,45 +464,52 @@ impl eframe::App for App {
             });
 
         {
-            {
-                // Camera
-                queue.write_buffer(
-                    &self.camera_buffer,
-                    0,
-                    bytemuck::bytes_of(&self.camera.to_gpu()),
-                );
+            // Camera
+            queue.write_buffer(
+                &self.camera_buffer,
+                0,
+                bytemuck::bytes_of(&self.camera.to_gpu()),
+            );
 
-                let mut objects_resized = false;
+            let mut objects_resized = false;
 
-                queue.write_buffer(
-                    &self.objects_info_buffer,
-                    0,
-                    bytemuck::bytes_of(&ObjectsInfo {
-                        wormholes_count: self.wormholes.len() as _,
-                    }),
-                );
+            queue.write_buffer(
+                &self.objects_info_buffer,
+                0,
+                bytemuck::bytes_of(&ObjectsInfo {
+                    wormholes_count: self.wormholes.len() as _,
+                    spheres_count: self.spheres.len() as _,
+                }),
+            );
 
-                if self.wormholes.len() * size_of::<Wormhole>() > self.wormholes_buffer.size() as _
-                {
-                    self.wormholes_buffer = wormholes_buffer(device, self.wormholes.len());
-                    objects_resized = true;
-                }
-                queue.write_buffer(
-                    &self.wormholes_buffer,
-                    0,
-                    bytemuck::cast_slice(&self.wormholes),
-                );
-
-                if objects_resized {
-                    self.objects_bind_group = objects_bind_group(
-                        device,
-                        &self.objects_bind_group_layout,
-                        &self.objects_info_buffer,
-                        &self.wormholes_buffer,
-                    );
-                }
+            if self.wormholes.len() * size_of::<Wormhole>() > self.wormholes_buffer.size() as _ {
+                self.wormholes_buffer = wormholes_buffer(device, self.wormholes.len());
+                objects_resized = true;
             }
+            queue.write_buffer(
+                &self.wormholes_buffer,
+                0,
+                bytemuck::cast_slice(&self.wormholes),
+            );
 
+            if self.spheres.len() * size_of::<Sphere>() > self.spheres_buffer.size() as _ {
+                self.spheres_buffer = spheres_buffer(device, self.spheres.len());
+                objects_resized = true;
+            }
+            queue.write_buffer(&self.spheres_buffer, 0, bytemuck::cast_slice(&self.spheres));
+
+            if objects_resized {
+                self.objects_bind_group = objects_bind_group(
+                    device,
+                    &self.objects_bind_group_layout,
+                    &self.objects_info_buffer,
+                    &self.wormholes_buffer,
+                    &self.spheres_buffer,
+                );
+            }
+        }
+
+        {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Command Encoder"),
             });
