@@ -20,28 +20,33 @@ float torus(float4 p, float ring_radius, float radius)
     return length(q) - radius;
 }
 
-float cut_plane(float2 p, float height, float smooth) {
+float cut_plane(float2 p, float height, float smooth)
+{
     float2 d = float2(p.x + smooth, abs(p.y) - height + smooth);
-    return length(max(d,0)) + min(max(d.x, d.y),0) - smooth;
+    return length(max(d, 0)) + min(max(d.x, d.y), 0) - smooth;
 }
 
 float wormholes(float4 p, IArray<Wormhole> wormholes, int wormholes_len, float height, float join)
 {
     float distance = float.maxValue;
     bool in_wormhole = false;
-    for (int i =0; i < wormholes_len; i++) {
+    for (int i = 0; i < wormholes_len; i++)
+    {
         Wormhole wormhole = wormholes[i];
-        if (length(p.xyz - wormhole.position) < wormhole.throat_size + wormhole.corner_radius + height) {
-            distance = min(cut_plane(float2(-length(p.xyz - wormhole.position) + wormhole.throat_size,p.w), height, wormhole.corner_radius), distance);
+        if (length(p.xyz - wormhole.position) < wormhole.throat_size + wormhole.corner_radius + height)
+        {
+            distance = min(cut_plane(float2(-length(p.xyz - wormhole.position) + wormhole.throat_size, p.w), height, wormhole.corner_radius), distance);
             in_wormhole = true;
         }
     }
-    if (in_wormhole) {
+    if (in_wormhole)
+    {
         return distance;
-    }else {
-        return cut_plane(float2(p.x - join - height, p.w),height,height);
+    }
+    else
+    {
+        return cut_plane(float2(p.x - join - height, p.w), height, height);
     }
 }
-
 
 }

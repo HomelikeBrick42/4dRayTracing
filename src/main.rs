@@ -412,7 +412,8 @@ impl App {
                             y: p.y,
                             z: p.z,
                         } - wormhole.position)
-                            .magnitude() + wormhole.throat_size,
+                            .magnitude()
+                            + wormhole.throat_size,
                         y: p.w,
                     },
                     plane_height,
@@ -425,23 +426,39 @@ impl App {
         if in_wormhole {
             return distance;
         }
-        cut_plane(Vector2 { x: p.x - join_position - plane_height, y: p.w }, plane_height, plane_height)
+        cut_plane(
+            Vector2 {
+                x: p.x - join_position - plane_height,
+                y: p.w,
+            },
+            plane_height,
+            plane_height,
+        )
     }
 
     fn project_spheres(&mut self) {
         for sphere in &mut self.spheres {
-            let distance = Self::wormholes_sdf(&self.wormholes, sphere.position, self.plane_height, self.join_position);
+            let distance = Self::wormholes_sdf(
+                &self.wormholes,
+                sphere.position,
+                self.plane_height,
+                self.join_position,
+            );
             if f32::abs(distance) < 0.0001 {
                 continue;
             }
 
-            let normal = sdf::normal(|p| Self::wormholes_sdf(&self.wormholes, p, self.plane_height, self.join_position), sphere.position);
+            let normal = sdf::normal(
+                |p| Self::wormholes_sdf(&self.wormholes, p, self.plane_height, self.join_position),
+                sphere.position,
+            );
             sphere.position -= normal * distance;
 
             if normal.square_magnitude() > 0.0 {
                 let old_normal = sphere.rotation.w();
-                let correction_rotation = Rotor::from_to_vector(old_normal, normal);
-                sphere.rotation = sphere.rotation.then(correction_rotation).normalised();
+                let correction_rotation =
+                    Rotor::from_to_vector(old_normal, normal * old_normal.dot(normal).signum());
+                sphere.rotation = correction_rotation.then(sphere.rotation).normalised();
             }
         }
     }
