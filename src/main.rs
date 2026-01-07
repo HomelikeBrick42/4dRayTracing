@@ -1,7 +1,7 @@
 use crate::camera::{Camera, GpuCamera};
 use bytemuck::NoUninit;
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
-use math::{Rotor, Vector3, Vector4};
+use math::{Rotor, Vector2, Vector3, Vector4};
 use std::{sync::Arc, time::Instant};
 
 pub mod camera;
@@ -12,6 +12,8 @@ pub mod sdf;
 struct ObjectsInfo {
     wormholes_count: u32,
     spheres_count: u32,
+    plane_height: f32,
+    join_position: f32,
 }
 
 #[derive(Debug, Clone, Copy, NoUninit)]
@@ -19,6 +21,8 @@ struct ObjectsInfo {
 struct Wormhole {
     position: Vector3<f32>,
     throat_size: f32,
+    corner_radius: f32,
+    padding: [f32; 3],
 }
 
 #[derive(Debug)]
@@ -52,6 +56,8 @@ struct App {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
 
+    plane_height: f32,
+    join_position: f32,
     objects_info_buffer: wgpu::Buffer,
 
     wormholes: Vec<Wormhole>,
@@ -228,6 +234,8 @@ impl App {
                 z: 0.0,
             },
             throat_size: 3.0,
+            corner_radius: 1.0,
+            padding: [0.0; 3],
         }];
         let wormholes_buffer = wormholes_buffer(device, wormholes.len());
 
@@ -325,6 +333,8 @@ impl App {
             camera_buffer,
             camera_bind_group,
 
+            plane_height: 1.0,
+            join_position: 8.0,
             objects_info_buffer,
 
             wormholes,
@@ -340,45 +350,92 @@ impl App {
         }
     }
 
-    fn wormhole_sdf(wormholes: &[Wormhole], p: Vector4<f32>) -> f32 {
-        let throat_length = 4.0;
-        let plane = f32::abs(p.w) - throat_length;
+    // fn wormholes_sdf(wormholes: &[Wormhole], p: Vector4<f32>) -> f32 {
+    //     let throat_length = 4.0;
+    //     let plane = f32::abs(p.w) - throat_length;
 
-        let mut d = plane;
+    //     let mut d = plane;
+    //     for wormhole in wormholes {
+    //         let cylinder = (Vector3 {
+    //             x: p.x,
+    //             y: p.y,
+    //             z: p.z,
+    //         } - wormhole.position)
+    //             .magnitude()
+    //             - (wormhole.throat_size + throat_length);
+    //         d = f32::max(d, -cylinder);
+    //     }
+    //     for wormhole in wormholes {
+    //         let torus = sdf::torus(
+    //             p - Vector4 {
+    //                 x: wormhole.position.x,
+    //                 y: wormhole.position.y,
+    //                 z: wormhole.position.z,
+    //                 w: 0.0,
+    //             },
+    //             wormhole.throat_size + throat_length,
+    //             throat_length,
+    //         );
+    //         d = f32::min(d, torus);
+    //     }
+    //     d
+    // }
+    fn wormholes_sdf(
+        wormholes: &[Wormhole],
+        p: Vector4<f32>,
+        plane_height: f32,
+        join_position: f32,
+    ) -> f32 {
+        fn cut_plane(p: Vector2<f32>, plane_height: f32, smooth: f32) -> f32 {
+            let d = Vector2 {
+                x: p.x + smooth,
+                y: p.y.abs() - plane_height + smooth,
+            };
+            d.max(0.0).magnitude() + d.x.max(d.y).min(0.0) - smooth
+        }
+
+        let mut distance = f32::MAX;
+        let mut in_wormhole = false;
         for wormhole in wormholes {
-            let cylinder = (Vector3 {
+            if (Vector3 {
                 x: p.x,
                 y: p.y,
                 z: p.z,
             } - wormhole.position)
                 .magnitude()
-                - (wormhole.throat_size + throat_length);
-            d = f32::max(d, -cylinder);
+                < wormhole.throat_size + wormhole.corner_radius + plane_height
+            {
+                distance = distance.min(cut_plane(
+                    Vector2 {
+                        x: -(Vector3 {
+                            x: p.x,
+                            y: p.y,
+                            z: p.z,
+                        } - wormhole.position)
+                            .magnitude() + wormhole.throat_size,
+                        y: p.w,
+                    },
+                    plane_height,
+                    wormhole.corner_radius,
+                ));
+                in_wormhole = true;
+            }
         }
-        for wormhole in wormholes {
-            let torus = sdf::torus(
-                p - Vector4 {
-                    x: wormhole.position.x,
-                    y: wormhole.position.y,
-                    z: wormhole.position.z,
-                    w: 0.0,
-                },
-                wormhole.throat_size + throat_length,
-                throat_length,
-            );
-            d = f32::min(d, torus);
+
+        if in_wormhole {
+            return distance;
         }
-        d
+        cut_plane(Vector2 { x: p.x - join_position - plane_height, y: p.w }, plane_height, plane_height)
     }
 
     fn project_spheres(&mut self) {
         for sphere in &mut self.spheres {
-            let distance = Self::wormhole_sdf(&self.wormholes, sphere.position);
+            let distance = Self::wormholes_sdf(&self.wormholes, sphere.position, self.plane_height, self.join_position);
             if f32::abs(distance) < 0.0001 {
                 continue;
             }
 
-            let normal = sdf::normal(|p| Self::wormhole_sdf(&self.wormholes, p), sphere.position);
+            let normal = sdf::normal(|p| Self::wormholes_sdf(&self.wormholes, p, self.plane_height, self.join_position), sphere.position);
             sphere.position -= normal * distance;
 
             if normal.square_magnitude() > 0.0 {
@@ -413,6 +470,15 @@ impl eframe::App for App {
         egui::Window::new("Wormholes")
             .resizable(false)
             .show(ctx, |ui| {
+                egui::Grid::new("Wormhole Grid").show(ui, |ui| {
+                    ui.label("Plane Height: ");
+                    ui.add(egui::DragValue::new(&mut self.plane_height).speed(0.1));
+                    self.plane_height = self.plane_height.max(0.0);
+                    ui.end_row();
+                    ui.label("Join Position: ");
+                    ui.add(egui::DragValue::new(&mut self.join_position).speed(0.1));
+                    ui.end_row();
+                });
                 if ui.button("New Wormhole").clicked() {
                     self.wormholes.push(Wormhole {
                         position: Vector3 {
@@ -421,6 +487,8 @@ impl eframe::App for App {
                             z: 0.0,
                         },
                         throat_size: 3.0,
+                        corner_radius: 1.0,
+                        padding: [0.0; 3],
                     });
                 }
 
@@ -434,6 +502,12 @@ impl eframe::App for App {
                                     egui::DragValue::new(&mut wormhole.position.x)
                                         .prefix("x:")
                                         .speed(0.1),
+                                );
+                                wormhole.position.x = wormhole.position.x.min(
+                                    self.join_position
+                                        - self.plane_height
+                                        - wormhole.corner_radius
+                                        - wormhole.throat_size,
                                 );
                                 ui.add(
                                     egui::DragValue::new(&mut wormhole.position.y)
@@ -450,6 +524,14 @@ impl eframe::App for App {
                                 ui.label("Throat Size:");
                                 ui.add(egui::DragValue::new(&mut wormhole.throat_size).speed(0.1));
                                 wormhole.throat_size = wormhole.throat_size.max(0.0);
+                                ui.end_row();
+
+                                ui.label("Corner Radius:");
+                                ui.add(
+                                    egui::DragValue::new(&mut wormhole.corner_radius).speed(0.1),
+                                );
+                                wormhole.corner_radius =
+                                    wormhole.corner_radius.clamp(0.0, self.plane_height);
                                 ui.end_row();
 
                                 if ui.button("Delete").clicked() {
@@ -643,6 +725,8 @@ impl eframe::App for App {
                 bytemuck::bytes_of(&ObjectsInfo {
                     wormholes_count: self.wormholes.len() as _,
                     spheres_count: self.spheres.len() as _,
+                    plane_height: self.plane_height,
+                    join_position: self.join_position,
                 }),
             );
 

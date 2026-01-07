@@ -123,24 +123,29 @@ Optional<Hit> hit_scene(Ray ray)
     return none;
 }
 
+// float scene_sdf(float4 p)
+// {
+//     let throat_length = 4.0;
+//     let plane = abs(p.w) - throat_length;
+
+//     var d = plane;
+//     for (var i = 0; i < objects_info.wormholes_count; i++)
+//     {
+//         let wormhole = wormholes[i];
+//         let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
+//         d = max(d, -cylinder);
+//     }
+//     for (var i = 0; i < objects_info.wormholes_count; i++)
+//     {
+//         let wormhole = wormholes[i];
+//         let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);
+//         d = min(d, torus);
+//     }
+
+//     return d;
+// }
+
 float scene_sdf(float4 p)
 {
-    let throat_length = 4.0;
-    let plane = abs(p.w) - throat_length;
-
-    var d = plane;
-    for (var i = 0; i < objects_info.wormholes_count; i++)
-    {
-        let wormhole = wormholes[i];
-        let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
-        d = max(d, -cylinder);
-    }
-    for (var i = 0; i < objects_info.wormholes_count; i++)
-    {
-        let wormhole = wormholes[i];
-        let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);
-        d = min(d, torus);
-    }
-
-    return d;
+    return sdf::wormholes(p, wormholes, objects_info.wormholes_count, objects_info.plane_height, objects_info.join_position);
 }
