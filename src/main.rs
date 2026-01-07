@@ -601,6 +601,10 @@ impl eframe::App for App {
                             });
 
                             ui.collapsing("Orientation", |ui| {
+                                if ui.button("Reset Orientation").clicked() {
+                                    sphere.rotation = Rotor::identity();
+                                }
+
                                 ui.add_enabled_ui(false, |ui| {
                                     egui::Grid::new("Orientation").show(ui, |ui| {
                                         {

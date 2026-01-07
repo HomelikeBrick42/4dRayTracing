@@ -461,7 +461,7 @@ impl Rotor {
         }
     }
 
-    /// `from` and `to` must be normalised
+    /// `from` and `to` must be normalised and must not be anti-parallel
     #[inline]
     pub fn from_to_vector(from: Vector4<f32>, to: Vector4<f32>) -> Self {
         rotor_from_to_vector(
