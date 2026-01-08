@@ -18,6 +18,14 @@ struct ObjectsInfo {
 
 #[derive(Debug, Clone, Copy, NoUninit)]
 #[repr(C)]
+struct RenderSettings {
+    signed_distance: u32,
+    hit_offset: f32,
+    pattern_scale: f32,
+}
+
+#[derive(Debug, Clone, Copy, NoUninit)]
+#[repr(C)]
 struct Wormhole {
     position: Vector3<f32>,
     throat_size: f32,
@@ -58,7 +66,10 @@ struct App {
 
     plane_height: f32,
     join_position: f32,
+    render_settings: RenderSettings,
     objects_info_buffer: wgpu::Buffer,
+
+    render_settings_buffer: wgpu::Buffer,
 
     wormholes: Vec<Wormhole>,
     wormholes_buffer: wgpu::Buffer,
@@ -130,6 +141,7 @@ fn objects_bind_group(
     objects_info_buffer: &wgpu::Buffer,
     wormholes_buffer: &wgpu::Buffer,
     spheres_buffer: &wgpu::Buffer,
+    render_settings_buffer: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Objects Bind Group"),
@@ -146,6 +158,10 @@ fn objects_bind_group(
             wgpu::BindGroupEntry {
                 binding: 2,
                 resource: spheres_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: render_settings_buffer.as_entire_binding(),
             },
         ],
     })
@@ -227,6 +243,13 @@ impl App {
             mapped_at_creation: false,
         });
 
+        let render_settings_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Rendering Setttings Buffer"),
+            size: size_of::<RenderSettings>().next_multiple_of(16) as _,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let wormholes = vec![Wormhole {
             position: Vector3 {
                 x: 0.0,
@@ -284,6 +307,16 @@ impl App {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
         let objects_bind_group = objects_bind_group(
@@ -292,6 +325,7 @@ impl App {
             &objects_info_buffer,
             &wormholes_buffer,
             &spheres_buffer,
+            &render_settings_buffer,
         );
 
         let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
@@ -335,7 +369,14 @@ impl App {
 
             plane_height: 1.0,
             join_position: 8.0,
+            render_settings: RenderSettings {
+                signed_distance: 0,
+                hit_offset: 0.0,
+                pattern_scale: 50.0,
+            },
             objects_info_buffer,
+
+            render_settings_buffer,
 
             wormholes,
             wormholes_buffer,
@@ -495,6 +536,9 @@ impl eframe::App for App {
                     ui.label("Join Position: ");
                     ui.add(egui::DragValue::new(&mut self.join_position).speed(0.1));
                     ui.end_row();
+                    ui.label("Hit Offset: ");
+                    ui.add(egui::DragValue::new(&mut self.render_settings.hit_offset).speed(0.1));
+                    ui.end_row();
                 });
                 if ui.button("New Wormhole").clicked() {
                     self.wormholes.push(Wormhole {
@@ -520,12 +564,12 @@ impl eframe::App for App {
                                         .prefix("x:")
                                         .speed(0.1),
                                 );
-                                wormhole.position.x = wormhole.position.x.min(
-                                    self.join_position
-                                        - self.plane_height
-                                        - wormhole.corner_radius
-                                        - wormhole.throat_size,
-                                );
+                                // wormhole.position.x = wormhole.position.x.min(
+                                //     self.join_position
+                                //         - self.plane_height
+                                //         - wormhole.corner_radius
+                                //         - wormhole.throat_size,
+                                // );
                                 ui.add(
                                     egui::DragValue::new(&mut wormhole.position.y)
                                         .prefix("y:")
@@ -561,6 +605,24 @@ impl eframe::App for App {
                 for i in to_delete.into_iter().rev() {
                     self.wormholes.remove(i);
                 }
+            });
+        egui::Window::new("Render Settings")
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("Render Settings Grid").show(ui, |ui| {
+                    ui.label("Use Signed Distance: ");
+                    let mut checked = self.render_settings.signed_distance != 0;
+                    ui.add(egui::Checkbox::new(&mut checked, ""));
+                    self.render_settings.signed_distance = checked as u8 as u32;
+                    ui.end_row();
+                    ui.label("Hit Offset: ");
+                    ui.add(egui::DragValue::new(&mut self.render_settings.hit_offset).speed(0.1));
+                    ui.end_row();
+                    ui.label("Pattern Scale: ");
+                    ui.add(egui::DragValue::new(&mut self.render_settings.pattern_scale).speed(0.1));
+                    self.render_settings.pattern_scale = self.render_settings.pattern_scale.max(1.0);
+                    ui.end_row();
+                });
             });
 
         let mut editing_spheres = false;
@@ -751,6 +813,12 @@ impl eframe::App for App {
                 }),
             );
 
+            queue.write_buffer(
+                &self.render_settings_buffer,
+                0,
+                bytemuck::bytes_of(&self.render_settings),
+            );
+
             if self.wormholes.len() * size_of::<Wormhole>() > self.wormholes_buffer.size() as _ {
                 self.wormholes_buffer = wormholes_buffer(device, self.wormholes.len());
                 objects_resized = true;
@@ -790,6 +858,7 @@ impl eframe::App for App {
                     &self.objects_info_buffer,
                     &self.wormholes_buffer,
                     &self.spheres_buffer,
+                    &self.render_settings_buffer,
                 );
             }
         }
