@@ -2,6 +2,7 @@ import include.camera;
 import include.ray;
 import include.sdf;
 import include.objects_info;
+import include.render_settings;
 import include.wormhole;
 import include.spheres;
 
@@ -20,6 +21,9 @@ StructuredBuffer<Wormhole> wormholes;
 
 [vk::binding(2, 2)]
 StructuredBuffer<Sphere> spheres;
+
+[vk::binding(3, 2)]
+ConstantBuffer<RenderSettings> render_settings;
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -40,8 +44,6 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
     ray.origin = camera.position;
     ray.direction = normalize(camera.forward + camera.up * uv.y * fov_scale + camera.right * uv.x * fov_scale * aspect);
 
-    var color = float3(0.0);
-
     var hit = hit_scene(ray);
 
     for (var i = 0; i < objects_info.spheres_count; i++)
@@ -51,6 +53,7 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
             hit = new_hit;
     }
 
+    var color = float3(float2(dot(ray.direction.xwz, float3(0.0,1.0,0.0)) * 0.5 + 0.5), dot(ray.direction.xwz, float3(0.0,1.0,0.0)) * 0.5 + 0.75);
     if (hit.hasValue)
         color = hit.value.color;
 
@@ -99,11 +102,14 @@ Optional<Hit> hit_scene(Ray ray)
     var total_distance = 0.0;
     for (int i = 0; i < 1000; i++)
     {
-        let distance = abs(scene_sdf(ray.origin));
+        var distance = scene_sdf(ray.origin);
+        if (render_settings.signed_distance == 0) {
+            distance = abs(distance);
+        }
 
         if (distance < 0.001)
         {
-            let scale = 50.0;
+            let scale = render_settings.pattern_scale;
             let kind = sin(ray.origin.x * scale) + sin(ray.origin.y * scale) + sin(ray.origin.z * scale) + sin(ray.origin.w * scale);
             let color = sdf::normal(scene_sdf, ray.origin).xyz * 0.5 + 0.5;
 
@@ -123,24 +129,37 @@ Optional<Hit> hit_scene(Ray ray)
     return none;
 }
 
+// float scene_sdf(float4 p)
+// {
+//     let throat_length = 4.0;
+//     let plane = abs(p.w) - throat_length;
+
+//     var d = plane;
+//     for (var i = 0; i < objects_info.wormholes_count; i++)
+//     {
+//         let wormhole = wormholes[i];
+//         let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
+//         d = max(d, -cylinder);
+//     }
+//     for (var i = 0; i < objects_info.wormholes_count; i++)
+//     {
+//         let wormhole = wormholes[i];
+//         let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);
+//         d = min(d, torus);
+//     }
+
+//     return d;
+// }
+
 float scene_sdf(float4 p)
 {
-    let throat_length = 4.0;
-    let plane = abs(p.w) - throat_length;
+    float d = float.maxValue;
+    Optional<float> wormholes_signed_dist = sdf::wormholes(p, wormholes, objects_info.wormholes_count, objects_info.plane_height, objects_info.join_position);
 
-    var d = plane;
-    for (var i = 0; i < objects_info.wormholes_count; i++)
-    {
-        let wormhole = wormholes[i];
-        let cylinder = length(p.xyz - wormhole.position) - (wormhole.throat_size + throat_length);
-        d = max(d, -cylinder);
+    if (wormholes_signed_dist.hasValue) {
+        d = wormholes_signed_dist.value;
+    } else {
+        d = sdf::cut_plane(float2(p.x - objects_info.join_position - objects_info.plane_height, p.w),  objects_info.plane_height, objects_info.plane_height);
     }
-    for (var i = 0; i < objects_info.wormholes_count; i++)
-    {
-        let wormhole = wormholes[i];
-        let torus = sdf::torus(p - float4(wormhole.position, 0.0), wormhole.throat_size + throat_length, throat_length);
-        d = min(d, torus);
-    }
-
-    return d;
+    return d - render_settings.hit_offset;
 }

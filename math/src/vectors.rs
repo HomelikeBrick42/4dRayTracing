@@ -38,6 +38,20 @@ impl Vector2<f32> {
             Vector2 { x: 0.0, y: 0.0 }
         }
     }
+
+    pub fn max(self, other: f32) -> Vector2<f32> {
+        Vector2 {
+            x: self.x.max(other),
+            y: self.y.max(other),
+        }
+    }
+    
+    pub fn min(self, other: f32) -> Vector2<f32> {
+        Vector2 {
+            x: self.x.min(other),
+            y: self.y.min(other),
+        }
+    }
 }
 
 unsafe impl<T: NoUninit> NoUninit for Vector2<T> {}
@@ -289,6 +303,22 @@ impl Vector3<f32> {
                 y: 0.0,
                 z: 0.0,
             }
+        }
+    }
+
+    pub fn max(self, other: f32) -> Vector3<f32> {
+        Vector3 {
+            x: self.x.max(other),
+            y: self.y.max(other),
+            z: self.z.max(other),
+        }
+    }
+
+    pub fn min(self, other: f32) -> Vector3<f32> {
+        Vector3 {
+            x: self.x.min(other),
+            y: self.y.min(other),
+            z: self.z.min(other),
         }
     }
 }
@@ -562,6 +592,24 @@ impl Vector4<f32> {
                 z: 0.0,
                 w: 0.0,
             }
+        }
+    }
+
+    pub fn max(self, other: f32) -> Vector4<f32> {
+        Vector4 {
+            x: self.x.max(other),
+            y: self.y.max(other),
+            z: self.z.max(other),
+            w: self.w.max(other),
+        }
+    }
+    
+    pub fn min(self, other: f32) -> Vector4<f32> {
+        Vector4 {
+            x: self.x.min(other),
+            y: self.y.min(other),
+            z: self.z.min(other),
+            w: self.w.min(other),
         }
     }
 }
