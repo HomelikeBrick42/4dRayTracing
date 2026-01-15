@@ -3,7 +3,7 @@ use eframe::egui;
 use math::{NoE4Rotor, Rotor, Transform, Vector4};
 use std::f32::consts::TAU;
 
-pub struct Camera {
+pub struct OutsideCamera {
     pub position: Vector4<f32>,
     pub base_rotation: NoE4Rotor,
     pub xw_rotation: f32,
@@ -14,7 +14,7 @@ pub struct Camera {
     pub rotate_speed: f32,
 }
 
-impl Camera {
+impl OutsideCamera {
     pub fn new(position: Vector4<f32>) -> Self {
         Self {
             position,
@@ -210,9 +210,9 @@ impl Camera {
         Transform::translation(self.position).then(Transform::from_rotor(self.rotation()))
     }
 
-    pub fn to_gpu(&self) -> GpuCamera {
+    pub fn to_gpu(&self) -> GpuOutsideCamera {
         let transform = self.transform();
-        GpuCamera {
+        GpuOutsideCamera {
             position: transform.position(),
             forward: transform.x(),
             up: transform.w(),
@@ -224,7 +224,7 @@ impl Camera {
 
 #[derive(Clone, Copy, NoUninit)]
 #[repr(C)]
-pub struct GpuCamera {
+pub struct GpuOutsideCamera {
     position: Vector4<f32>,
     forward: Vector4<f32>,
     up: Vector4<f32>,

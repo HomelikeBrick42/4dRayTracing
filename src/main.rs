@@ -1,10 +1,10 @@
-use crate::camera::{Camera, GpuCamera};
+use crate::outside_camera::{GpuOutsideCamera, OutsideCamera};
 use bytemuck::NoUninit;
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
 use math::{Rotor, Vector2, Vector3, Vector4};
 use std::{sync::Arc, time::Instant};
 
-pub mod camera;
+pub mod outside_camera;
 pub mod sdf;
 
 #[derive(Debug, Clone, Copy, NoUninit)]
@@ -54,15 +54,15 @@ struct App {
 
     output_texture_bind_group_layout: wgpu::BindGroupLayout,
 
-    output_texture_width: u32,
-    output_texture_height: u32,
-    output_texture: wgpu::TextureView,
-    output_texture_id: egui::TextureId,
+    outside_texture_width: u32,
+    outside_texture_height: u32,
+    outside_texture: wgpu::TextureView,
+    outside_texture_id: egui::TextureId,
     output_texture_bind_group: wgpu::BindGroup,
 
-    camera: Camera,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
+    outside_camera: OutsideCamera,
+    outside_camera_buffer: wgpu::Buffer,
+    outside_camera_bind_group: wgpu::BindGroup,
 
     plane_height: f32,
     join_position: f32,
@@ -81,6 +81,12 @@ struct App {
     objects_bind_group: wgpu::BindGroup,
 
     ray_tracing_pipeline: wgpu::ComputePipeline,
+
+    cameras_window_open: bool,
+    render_settings_window_open: bool,
+    wormholes_window_open: bool,
+    spheres_window_open: bool,
+    outside_camera_window_open: bool,
 }
 
 fn output_texture_and_bind_group(
@@ -201,21 +207,21 @@ impl App {
             wgpu::FilterMode::Nearest,
         );
 
-        let camera = Camera::new(Vector4 {
+        let outside_camera = OutsideCamera::new(Vector4 {
             x: -3.0,
             y: 0.0,
             z: 0.0,
             w: 2.0,
         });
-        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Camera Buffer"),
-            size: size_of::<GpuCamera>().next_multiple_of(16) as _,
+        let outside_camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Outside Camera Buffer"),
+            size: size_of::<GpuOutsideCamera>().next_multiple_of(16) as _,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let camera_bind_group_layout =
+        let outside_camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Camera Bind Group Layout"),
+                label: Some("Outside Camera Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -227,12 +233,12 @@ impl App {
                     count: None,
                 }],
             });
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Camera Bind Group"),
-            layout: &camera_bind_group_layout,
+        let outside_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Outside Camera Bind Group"),
+            layout: &outside_camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: camera_buffer.as_entire_binding(),
+                resource: outside_camera_buffer.as_entire_binding(),
             }],
         });
 
@@ -337,7 +343,7 @@ impl App {
                 label: Some("Ray Tracing Pipeline Layout"),
                 bind_group_layouts: &[
                     &output_texture_bind_group_layout,
-                    &camera_bind_group_layout,
+                    &outside_camera_bind_group_layout,
                     &objects_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
@@ -357,15 +363,15 @@ impl App {
 
             output_texture_bind_group_layout,
 
-            output_texture_width,
-            output_texture_height,
-            output_texture,
-            output_texture_id,
+            outside_texture_width: output_texture_width,
+            outside_texture_height: output_texture_height,
+            outside_texture: output_texture,
+            outside_texture_id: output_texture_id,
             output_texture_bind_group,
 
-            camera,
-            camera_buffer,
-            camera_bind_group,
+            outside_camera,
+            outside_camera_buffer,
+            outside_camera_bind_group,
 
             plane_height: 1.0,
             join_position: 8.0,
@@ -388,6 +394,12 @@ impl App {
             objects_bind_group,
 
             ray_tracing_pipeline,
+
+            cameras_window_open: false,
+            render_settings_window_open: false,
+            wormholes_window_open: false,
+            spheres_window_open: false,
+            outside_camera_window_open: true,
         }
     }
 
@@ -518,14 +530,28 @@ impl eframe::App for App {
         let dt = time - self.last_time.unwrap_or(time);
         self.last_time = Some(time);
 
-        egui::Window::new("Camera")
+        egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                self.cameras_window_open |= ui.button("Cameras").clicked();
+                self.render_settings_window_open |= ui.button("Render Settings").clicked();
+                self.wormholes_window_open |= ui.button("Wormholes").clicked();
+                self.spheres_window_open |= ui.button("Spheres").clicked();
+                self.outside_camera_window_open |= ui.button("Outside Camera").clicked();
+            });
+        });
+
+        egui::Window::new("Cameras")
+            .open(&mut self.cameras_window_open)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f32()));
-                self.camera.ui(ui);
+                ui.collapsing("Outside Camera", |ui| {
+                    self.outside_camera.ui(ui);
+                });
             });
 
         egui::Window::new("Wormholes")
+            .open(&mut self.wormholes_window_open)
             .resizable(false)
             .show(ctx, |ui| {
                 egui::Grid::new("Wormhole Grid").show(ui, |ui| {
@@ -606,7 +632,9 @@ impl eframe::App for App {
                     self.wormholes.remove(i);
                 }
             });
+
         egui::Window::new("Render Settings")
+            .open(&mut self.render_settings_window_open)
             .resizable(false)
             .show(ctx, |ui| {
                 egui::Grid::new("Render Settings Grid").show(ui, |ui| {
@@ -619,8 +647,11 @@ impl eframe::App for App {
                     ui.add(egui::DragValue::new(&mut self.render_settings.hit_offset).speed(0.1));
                     ui.end_row();
                     ui.label("Pattern Scale: ");
-                    ui.add(egui::DragValue::new(&mut self.render_settings.pattern_scale).speed(0.1));
-                    self.render_settings.pattern_scale = self.render_settings.pattern_scale.max(1.0);
+                    ui.add(
+                        egui::DragValue::new(&mut self.render_settings.pattern_scale).speed(0.1),
+                    );
+                    self.render_settings.pattern_scale =
+                        self.render_settings.pattern_scale.max(1.0);
                     ui.end_row();
                 });
             });
@@ -628,6 +659,7 @@ impl eframe::App for App {
         let mut editing_spheres = false;
 
         egui::Window::new("Spheres")
+            .open(&mut self.spheres_window_open)
             .resizable(false)
             .show(ctx, |ui| {
                 if ui.button("New Sphere").clicked() {
@@ -753,10 +785,9 @@ impl eframe::App for App {
             self.project_spheres();
         }
 
-        self.camera.update(ctx, dt.as_secs_f32());
-
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
+        egui::Window::new("Outside Camera")
+            .open(&mut self.outside_camera_window_open)
+            .frame(egui::Frame::window(&ctx.style()).inner_margin(0))
             .show(ctx, |ui| {
                 let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
 
@@ -764,41 +795,52 @@ impl eframe::App for App {
                 let height = response.rect.height() as u32;
                 if width > 0
                     && height > 0
-                    && width != self.output_texture_width
-                    && height != self.output_texture_height
+                    && width != self.outside_texture_width
+                    && height != self.outside_texture_height
                 {
-                    self.output_texture_width = width;
-                    self.output_texture_height = height;
-                    (self.output_texture, self.output_texture_bind_group) =
+                    self.outside_texture_width = width;
+                    self.outside_texture_height = height;
+                    (self.outside_texture, self.output_texture_bind_group) =
                         output_texture_and_bind_group(
                             device,
                             &self.output_texture_bind_group_layout,
-                            self.output_texture_width,
-                            self.output_texture_height,
+                            self.outside_texture_width,
+                            self.outside_texture_height,
                         );
                     renderer.write().update_egui_texture_from_wgpu_texture(
                         device,
-                        &self.output_texture,
+                        &self.outside_texture,
                         wgpu::FilterMode::Nearest,
-                        self.output_texture_id,
+                        self.outside_texture_id,
                     );
                 }
 
                 ui.painter().image(
-                    self.output_texture_id,
+                    self.outside_texture_id,
                     response.rect,
                     egui::Rect::from_min_max(egui::pos2(0.0, 1.0), egui::pos2(1.0, 0.0)),
                     egui::Color32::WHITE,
                 );
+
+                if response.hovered() {
+                    self.outside_camera.update(ctx, dt.as_secs_f32());
+                }
+            });
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ctx, |ui| {
+                _ = ui;
             });
 
         {
-            // Camera
-            queue.write_buffer(
-                &self.camera_buffer,
-                0,
-                bytemuck::bytes_of(&self.camera.to_gpu()),
-            );
+            if self.outside_camera_window_open {
+                queue.write_buffer(
+                    &self.outside_camera_buffer,
+                    0,
+                    bytemuck::bytes_of(&self.outside_camera.to_gpu()),
+                );
+            }
 
             let mut objects_resized = false;
 
@@ -863,7 +905,7 @@ impl eframe::App for App {
             }
         }
 
-        {
+        if self.outside_camera_window_open {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Command Encoder"),
             });
@@ -875,11 +917,11 @@ impl eframe::App for App {
 
                 compute_pass.set_pipeline(&self.ray_tracing_pipeline);
                 compute_pass.set_bind_group(0, &self.output_texture_bind_group, &[]);
-                compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                compute_pass.set_bind_group(1, &self.outside_camera_bind_group, &[]);
                 compute_pass.set_bind_group(2, &self.objects_bind_group, &[]);
                 compute_pass.dispatch_workgroups(
-                    self.output_texture_width.div_ceil(16),
-                    self.output_texture_height.div_ceil(16),
+                    self.outside_texture_width.div_ceil(16),
+                    self.outside_texture_height.div_ceil(16),
                     1,
                 );
             }

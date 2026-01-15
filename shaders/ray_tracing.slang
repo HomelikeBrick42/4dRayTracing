@@ -53,7 +53,7 @@ void trace_rays(uint3 global_index: SV_DispatchThreadID)
             hit = new_hit;
     }
 
-    var color = float3(float2(dot(ray.direction.xwz, float3(0.0,1.0,0.0)) * 0.5 + 0.5), dot(ray.direction.xwz, float3(0.0,1.0,0.0)) * 0.5 + 0.75);
+    var color = float3(float2(dot(ray.direction.xwz, float3(0.0, 1.0, 0.0)) * 0.5 + 0.5), dot(ray.direction.xwz, float3(0.0, 1.0, 0.0)) * 0.5 + 0.75);
     if (hit.hasValue)
         color = hit.value.color;
 
@@ -106,7 +106,8 @@ Optional<Hit> hit_scene(Ray ray)
     for (int i = 0; i < 1000; i++)
     {
         var distance = scene_sdf(ray.origin);
-        if (render_settings.signed_distance == 0) {
+        if (render_settings.signed_distance == 0)
+        {
             distance = abs(distance);
         }
 
@@ -159,10 +160,13 @@ float scene_sdf(float4 p)
     float d = float.maxValue;
     Optional<float> wormholes_signed_dist = sdf::wormholes(p, wormholes, objects_info.wormholes_count, objects_info.plane_height, objects_info.join_position);
 
-    if (wormholes_signed_dist.hasValue) {
+    if (wormholes_signed_dist.hasValue)
+    {
         d = wormholes_signed_dist.value;
-    } else {
-        d = sdf::cut_plane(float2(p.x - objects_info.join_position - objects_info.plane_height, p.w),  objects_info.plane_height, objects_info.plane_height);
+    }
+    else
+    {
+        d = sdf::cut_plane(float2(p.x - objects_info.join_position - objects_info.plane_height, p.w), objects_info.plane_height, objects_info.plane_height);
     }
     return d - render_settings.hit_offset;
 }
