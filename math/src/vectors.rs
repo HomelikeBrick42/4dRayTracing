@@ -39,14 +39,14 @@ impl Vector2<f32> {
         }
     }
 
-    pub fn max(self, other: f32) -> Vector2<f32> {
+    pub fn max(self, other: f32) -> Self {
         Vector2 {
             x: self.x.max(other),
             y: self.y.max(other),
         }
     }
-    
-    pub fn min(self, other: f32) -> Vector2<f32> {
+
+    pub fn min(self, other: f32) -> Self {
         Vector2 {
             x: self.x.min(other),
             y: self.y.min(other),
@@ -306,7 +306,7 @@ impl Vector3<f32> {
         }
     }
 
-    pub fn max(self, other: f32) -> Vector3<f32> {
+    pub fn max(self, other: f32) -> Self {
         Vector3 {
             x: self.x.max(other),
             y: self.y.max(other),
@@ -314,7 +314,7 @@ impl Vector3<f32> {
         }
     }
 
-    pub fn min(self, other: f32) -> Vector3<f32> {
+    pub fn min(self, other: f32) -> Self {
         Vector3 {
             x: self.x.min(other),
             y: self.y.min(other),
@@ -595,7 +595,7 @@ impl Vector4<f32> {
         }
     }
 
-    pub fn max(self, other: f32) -> Vector4<f32> {
+    pub fn max(self, other: f32) -> Self {
         Vector4 {
             x: self.x.max(other),
             y: self.y.max(other),
@@ -603,8 +603,8 @@ impl Vector4<f32> {
             w: self.w.max(other),
         }
     }
-    
-    pub fn min(self, other: f32) -> Vector4<f32> {
+
+    pub fn min(self, other: f32) -> Self {
         Vector4 {
             x: self.x.min(other),
             y: self.y.min(other),

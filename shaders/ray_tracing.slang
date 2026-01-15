@@ -75,13 +75,16 @@ Optional<Hit> hit_sphere(Sphere sphere, Ray ray)
         return none;
 
     let d1 = (h - sqrt(discriminant)) / a;
-    // let d2 = (h + sqrt(discriminant)) / a;
-
-    if (d1 < 0.0)
-        return none;
+    let d2 = (h + sqrt(discriminant)) / a;
 
     var hit : Hit;
     hit.distance = d1;
+
+    if (hit.distance < 0.0)
+        hit.distance = d2;
+    if (hit.distance < 0.0)
+        return none;
+
     hit.position = ray.origin + ray.direction * hit.distance;
 
     let scale = 100.0;
