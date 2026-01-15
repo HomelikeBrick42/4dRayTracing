@@ -66,6 +66,29 @@ impl Camera {
                         .base_rotation
                         .then(NoE4Rotor::rotate_xz(self.rotate_speed * ts));
                 }
+
+                if i.key_down(egui::Key::Period) {
+                    self.base_rotation = self
+                        .base_rotation
+                        .then(NoE4Rotor::rotate_xy(self.rotate_speed * ts));
+                }
+                if i.key_down(egui::Key::Comma) {
+                    self.base_rotation = self
+                        .base_rotation
+                        .then(NoE4Rotor::rotate_xy(-self.rotate_speed * ts));
+                }
+
+                if i.key_down(egui::Key::Semicolon) {
+                    self.base_rotation = self
+                        .base_rotation
+                        .then(NoE4Rotor::rotate_yz(self.rotate_speed * ts));
+                }
+                if i.key_down(egui::Key::Quote) {
+                    self.base_rotation = self
+                        .base_rotation
+                        .then(NoE4Rotor::rotate_yz(-self.rotate_speed * ts));
+                }
+
                 if i.key_down(egui::Key::ArrowUp) {
                     self.xw_rotation += self.rotate_speed * ts;
                 }
