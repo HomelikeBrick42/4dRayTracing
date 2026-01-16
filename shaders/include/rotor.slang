@@ -233,7 +233,19 @@ struct Rotor
         result.e2e3 = (_1 * _6) + (-1.0 * _2 * _5);
         result.e2e4 = (_1 * _7) + (-1.0 * _3 * _5);
         result.e3e4 = (_2 * _7) + (-1.0 * _3 * _6);
-        return result.normalised();
+
+        let squared_magnitude = result.magnitude_squared();
+        let inverse_magnitude = 1.0 / sqrt(squared_magnitude.s); // optimisation, because this rotor is not a double rotation, the e1e2e3e4 part should be 0
+        result.s *= inverse_magnitude;
+        result.e1e2 *= inverse_magnitude;
+        result.e1e3 *= inverse_magnitude;
+        result.e1e4 *= inverse_magnitude;
+        result.e2e3 *= inverse_magnitude;
+        result.e2e3 *= inverse_magnitude;
+        result.e2e4 *= inverse_magnitude;
+        result.e3e4 *= inverse_magnitude;
+
+        return result;
     }
 }
 

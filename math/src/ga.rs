@@ -464,7 +464,7 @@ impl Rotor {
     /// `from` and `to` must be normalised and must not be anti-parallel
     #[inline]
     pub fn from_to_vector(from: Vector4<f32>, to: Vector4<f32>) -> Self {
-        rotor_from_to_vector(
+        let mut result = rotor_from_to_vector(
             VgaVector {
                 e1: from.x,
                 e2: from.y,
@@ -477,8 +477,19 @@ impl Rotor {
                 e3: to.z,
                 e4: to.w,
             },
-        )
-        .normalised()
+        );
+
+        let squared_magnitude = rotor_squared_magnitude(result);
+        let inverse_magnitude = 1.0 / squared_magnitude.s.sqrt(); // optimisation, because this rotor is not a double rotation, the e1e2e3e4 part should be 0
+        result.e1e2 *= inverse_magnitude;
+        result.e1e3 *= inverse_magnitude;
+        result.e1e4 *= inverse_magnitude;
+        result.e2e3 *= inverse_magnitude;
+        result.e2e3 *= inverse_magnitude;
+        result.e2e4 *= inverse_magnitude;
+        result.e3e4 *= inverse_magnitude;
+
+        result
     }
 
     #[inline]

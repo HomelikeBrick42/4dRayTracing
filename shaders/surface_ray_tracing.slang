@@ -91,7 +91,7 @@ Optional<Hit> hit_scene(float4 position, Rotor rotation, float3 direction)
         }
 
         total_distance += step_distance;
-        if (total_distance > 30.0)
+        if (camera.max_distance < total_distance)
             break;
 
         walk(position, rotation, direction, step_distance);
@@ -103,7 +103,7 @@ void walk(inout float4 position, inout Rotor rotation, float3 direction, float d
 {
     while (distance > 0.0)
     {
-        let step = min(distance, 0.5);
+        let step = min(distance, camera.max_step_size);
         distance -= step;
 
         position += rotation.rotate_direction(float4(direction * step, 0.0));

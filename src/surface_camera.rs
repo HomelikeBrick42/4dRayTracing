@@ -12,6 +12,9 @@ pub struct SurfaceCamera {
 
     pub move_speed: f32,
     pub rotate_speed: f32,
+
+    pub max_view_step_size: f32,
+    pub max_view_distance: f32,
 }
 
 impl SurfaceCamera {
@@ -24,6 +27,9 @@ impl SurfaceCamera {
 
             move_speed: 5.0,
             rotate_speed: TAU * 0.5,
+
+            max_view_step_size: 0.5,
+            max_view_distance: 50.0,
         }
     }
 
@@ -189,6 +195,15 @@ impl SurfaceCamera {
             ui.label("Rotate Speed:");
             ui.drag_angle(&mut self.rotate_speed);
             ui.end_row();
+
+            ui.label("Max View Step Size:");
+            ui.add(egui::DragValue::new(&mut self.max_view_step_size).speed(0.01));
+            self.max_view_step_size = self.max_view_step_size.max(0.1);
+            ui.end_row();
+
+            ui.label("Max View Distance:");
+            ui.add(egui::DragValue::new(&mut self.max_view_distance).speed(0.1));
+            ui.end_row();
         });
 
         ui.collapsing("Computed Transform", |ui| {
@@ -254,6 +269,8 @@ impl SurfaceCamera {
             position: self.position,
             rotation: self.rotation,
             fov: self.fov,
+            max_step_size: self.max_view_step_size,
+            max_distance: self.max_view_distance,
         }
     }
 }
@@ -264,4 +281,6 @@ pub struct GpuSurfaceCamera {
     position: Vector4<f32>,
     rotation: Rotor,
     fov: f32,
+    max_step_size: f32,
+    max_distance: f32,
 }

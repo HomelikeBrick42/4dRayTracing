@@ -5,7 +5,7 @@ use crate::{
 use bytemuck::NoUninit;
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
 use math::{Rotor, Vector2, Vector3, Vector4};
-use std::{sync::Arc, time::Instant};
+use std::{f32::consts::TAU, sync::Arc, time::Instant};
 
 pub mod outside_camera;
 pub mod sdf;
@@ -346,19 +346,28 @@ impl App {
             },
             Sphere {
                 position: Vector4 {
-                    x: 10.5,
+                    x: 8.0,
                     y: 0.0,
                     z: 0.0,
-                    w: 6.0,
+                    w: -6.0,
+                },
+                rotation: Rotor::rotate_xw(TAU * 0.5),
+            },
+            Sphere {
+                position: Vector4 {
+                    x: 3.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 0.0,
                 },
                 rotation: Rotor::identity(),
             },
             Sphere {
                 position: Vector4 {
-                    x: 8.0,
+                    x: 10.0,
                     y: 0.0,
-                    z: 2.0,
-                    w: 6.0,
+                    z: 0.0,
+                    w: 0.0,
                 },
                 rotation: Rotor::identity(),
             },
