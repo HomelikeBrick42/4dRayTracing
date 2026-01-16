@@ -1,7 +1,7 @@
 use crate::sdf;
 use bytemuck::NoUninit;
 use eframe::egui;
-use math::{Rotor, Vector4};
+use math::{Rotor, Vector3, Vector4};
 use std::f32::consts::TAU;
 
 pub struct SurfaceCamera {
@@ -46,7 +46,7 @@ impl SurfaceCamera {
 
     pub fn walk(
         &mut self,
-        direction: Vector4<f32>,
+        direction: Vector3<f32>,
         mut distance: f32,
         mut f: impl FnMut(Vector4<f32>) -> f32,
     ) {
@@ -54,7 +54,12 @@ impl SurfaceCamera {
             let step = distance.min(0.01);
             distance -= step;
 
-            self.position += direction * step;
+            self.position += self.rotation.transform_direction(Vector4 {
+                x: direction.x * step,
+                y: direction.y * step,
+                z: direction.z * step,
+                w: 0.0,
+            });
             self.project(&mut f);
         }
     }
@@ -63,22 +68,70 @@ impl SurfaceCamera {
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
                 if i.key_down(egui::Key::W) {
-                    self.walk(self.rotation.x(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: 1.0,
+                            y: 0.0,
+                            z: 0.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
                 if i.key_down(egui::Key::S) {
-                    self.walk(-self.rotation.x(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: -1.0,
+                            y: 0.0,
+                            z: 0.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
                 if i.key_down(egui::Key::A) {
-                    self.walk(-self.rotation.z(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: -1.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
                 if i.key_down(egui::Key::D) {
-                    self.walk(self.rotation.z(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 1.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
                 if i.key_down(egui::Key::Q) {
-                    self.walk(-self.rotation.y(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: 0.0,
+                            y: -1.0,
+                            z: 0.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
                 if i.key_down(egui::Key::E) {
-                    self.walk(self.rotation.y(), self.move_speed * ts, &mut f);
+                    self.walk(
+                        Vector3 {
+                            x: 0.0,
+                            y: 1.0,
+                            z: 0.0,
+                        },
+                        self.move_speed * ts,
+                        &mut f,
+                    );
                 }
 
                 if i.key_down(egui::Key::ArrowLeft) {
@@ -165,7 +218,7 @@ impl SurfaceCamera {
                         ui.end_row();
                     }
                     {
-                        let mut up = self.rotation.w();
+                        let mut up = self.rotation.y();
 
                         ui.label("Up:");
                         ui.add(egui::DragValue::new(&mut up.x).prefix("x:"));
@@ -185,7 +238,7 @@ impl SurfaceCamera {
                         ui.end_row();
                     }
                     {
-                        let mut ana = self.rotation.y();
+                        let mut ana = self.rotation.w();
 
                         ui.label("Ana:");
                         ui.add(egui::DragValue::new(&mut ana.x).prefix("x:"));

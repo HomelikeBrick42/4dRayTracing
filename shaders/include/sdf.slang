@@ -26,23 +26,27 @@ float cut_plane(float2 p, float height, float smooth)
     return length(max(d, 0)) + min(max(d.x, d.y), 0) - smooth;
 }
 
-Optional<float> wormholes(float4 p, IArray<Wormhole> wormholes, int wormholes_len, float height, float join)
+float wormholes(float4 p, IArray<Wormhole> wormholes, int wormholes_len, float height, float join)
 {
-    Optional<float> distance = none;
+    float distance = float.maxValue;
+    bool in_wormhole = false;
     for (int i = 0; i < wormholes_len; i++)
     {
         Wormhole wormhole = wormholes[i];
         if (length(p.xyz - wormhole.position) < wormhole.throat_size + wormhole.corner_radius + height)
         {
-            float sdf = cut_plane(float2(-length(p.xyz - wormhole.position) + wormhole.throat_size, p.w), height, wormhole.corner_radius);
-            if (distance.hasValue) {
-                distance = min(distance.value, sdf);
-            }else {
-                distance = sdf;
-            }
+            distance = min(cut_plane(float2(-length(p.xyz - wormhole.position) + wormhole.throat_size, p.w), height, wormhole.corner_radius), distance);
+            in_wormhole = true;
         }
     }
-    return distance;
+    if (in_wormhole)
+    {
+        return distance;
+    }
+    else
+    {
+        return cut_plane(float2(p.x - join - height, p.w), height, height);
+    }
 }
 
 }

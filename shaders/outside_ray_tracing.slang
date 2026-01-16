@@ -1,4 +1,4 @@
-import include.camera;
+import include.outside_camera;
 import include.ray;
 import include.sdf;
 import include.objects_info;

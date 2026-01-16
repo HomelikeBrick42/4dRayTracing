@@ -95,13 +95,14 @@ struct App {
     objects_bind_group: wgpu::BindGroup,
 
     outside_ray_tracing_pipeline: wgpu::ComputePipeline,
+    surface_ray_tracing_pipeline: wgpu::ComputePipeline,
 
     cameras_window_open: bool,
     render_settings_window_open: bool,
     wormholes_window_open: bool,
     spheres_window_open: bool,
-    outside_camera_window_open: bool,
-    surface_camera_window_open: bool,
+    outside_view_window_open: bool,
+    surface_view_window_open: bool,
 }
 
 fn output_texture_and_bind_group(
@@ -274,7 +275,7 @@ impl App {
 
         let surface_camera = SurfaceCamera::new(Vector4 {
             x: 6.0,
-            y: 0.0,
+            y: 2.0,
             z: 0.0,
             w: 4.0,
         });
@@ -333,15 +334,35 @@ impl App {
         }];
         let wormholes_buffer = wormholes_buffer(device, wormholes.len());
 
-        let spheres = vec![Sphere {
-            position: Vector4 {
-                x: 8.0,
-                y: 0.0,
-                z: 0.0,
-                w: 6.0,
+        let spheres = vec![
+            Sphere {
+                position: Vector4 {
+                    x: 8.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 6.0,
+                },
+                rotation: Rotor::identity(),
             },
-            rotation: Rotor::identity(),
-        }];
+            Sphere {
+                position: Vector4 {
+                    x: 10.5,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 6.0,
+                },
+                rotation: Rotor::identity(),
+            },
+            Sphere {
+                position: Vector4 {
+                    x: 8.0,
+                    y: 0.0,
+                    z: 2.0,
+                    w: 6.0,
+                },
+                rotation: Rotor::identity(),
+            },
+        ];
         let spheres_buffer = spheres_buffer(device, spheres.len());
 
         let objects_bind_group_layout =
@@ -423,6 +444,30 @@ impl App {
                 cache: None,
             });
 
+        let surface_ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
+            env!("OUT_DIR"),
+            "/shaders/surface_ray_tracing.wgsl"
+        )));
+        let surface_ray_tracing_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Surface Ray Tracing Pipeline Layout"),
+                bind_group_layouts: &[
+                    &output_texture_bind_group_layout,
+                    &surface_camera_bind_group_layout,
+                    &objects_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+        let surface_ray_tracing_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Surface Ray Tracing Pipeline"),
+                layout: Some(&surface_ray_tracing_pipeline_layout),
+                module: &surface_ray_tracing_shader,
+                entry_point: Some("trace_rays"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
+
         Self {
             last_time: None,
 
@@ -469,13 +514,14 @@ impl App {
             objects_bind_group,
 
             outside_ray_tracing_pipeline,
+            surface_ray_tracing_pipeline,
 
             cameras_window_open: true,
             render_settings_window_open: false,
             wormholes_window_open: false,
             spheres_window_open: false,
-            outside_camera_window_open: true,
-            surface_camera_window_open: true,
+            outside_view_window_open: true,
+            surface_view_window_open: true,
         }
     }
 
@@ -612,7 +658,8 @@ impl eframe::App for App {
                 self.render_settings_window_open |= ui.button("Render Settings").clicked();
                 self.wormholes_window_open |= ui.button("Wormholes").clicked();
                 self.spheres_window_open |= ui.button("Spheres").clicked();
-                self.outside_camera_window_open |= ui.button("Outside Camera").clicked();
+                self.outside_view_window_open |= ui.button("Outside View").clicked();
+                self.surface_view_window_open |= ui.button("Surface View").clicked();
             });
         });
 
@@ -864,8 +911,8 @@ impl eframe::App for App {
             self.project_spheres();
         }
 
-        egui::Window::new("Outside Camera")
-            .open(&mut self.outside_camera_window_open)
+        egui::Window::new("Outside View")
+            .open(&mut self.outside_view_window_open)
             .frame(egui::Frame::window(&ctx.style()).inner_margin(0))
             .show(ctx, |ui| {
                 let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
@@ -906,8 +953,8 @@ impl eframe::App for App {
                 }
             });
 
-        egui::Window::new("Surface Camera")
-            .open(&mut self.outside_camera_window_open)
+        egui::Window::new("Surface View")
+            .open(&mut self.surface_view_window_open)
             .frame(egui::Frame::window(&ctx.style()).inner_margin(0))
             .show(ctx, |ui| {
                 let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
@@ -943,15 +990,12 @@ impl eframe::App for App {
                     egui::Color32::WHITE,
                 );
 
+                let sdf = |p| {
+                    Self::wormholes_sdf(&self.wormholes, p, self.plane_height, self.join_position)
+                };
+                self.surface_camera.project(sdf);
                 if response.hovered() {
-                    self.surface_camera.update(ctx, dt.as_secs_f32(), |p| {
-                        Self::wormholes_sdf(
-                            &self.wormholes,
-                            p,
-                            self.plane_height,
-                            self.join_position,
-                        )
-                    });
+                    self.surface_camera.update(ctx, dt.as_secs_f32(), sdf);
                 }
             });
 
@@ -962,14 +1006,14 @@ impl eframe::App for App {
             });
 
         {
-            if self.outside_camera_window_open {
+            if self.outside_view_window_open {
                 queue.write_buffer(
                     &self.outside_camera_buffer,
                     0,
                     bytemuck::bytes_of(&self.outside_camera.to_gpu()),
                 );
             }
-            if self.surface_camera_window_open {
+            if self.surface_view_window_open {
                 queue.write_buffer(
                     &self.surface_camera_buffer,
                     0,
@@ -1040,7 +1084,7 @@ impl eframe::App for App {
             }
         }
 
-        if self.outside_camera_window_open {
+        if self.outside_view_window_open || self.surface_view_window_open {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Command Encoder"),
             });
@@ -1052,23 +1096,27 @@ impl eframe::App for App {
 
                 compute_pass.set_bind_group(2, &self.objects_bind_group, &[]);
 
-                compute_pass.set_pipeline(&self.outside_ray_tracing_pipeline);
-                compute_pass.set_bind_group(0, &self.outside_texture_bind_group, &[]);
-                compute_pass.set_bind_group(1, &self.outside_camera_bind_group, &[]);
-                compute_pass.dispatch_workgroups(
-                    self.outside_texture_width.div_ceil(16),
-                    self.outside_texture_height.div_ceil(16),
-                    1,
-                );
+                if self.outside_view_window_open {
+                    compute_pass.set_pipeline(&self.outside_ray_tracing_pipeline);
+                    compute_pass.set_bind_group(0, &self.outside_texture_bind_group, &[]);
+                    compute_pass.set_bind_group(1, &self.outside_camera_bind_group, &[]);
+                    compute_pass.dispatch_workgroups(
+                        self.outside_texture_width.div_ceil(16),
+                        self.outside_texture_height.div_ceil(16),
+                        1,
+                    );
+                }
 
-                // compute_pass.set_pipeline(&self.surface_ray_tracing_pipeline);
-                compute_pass.set_bind_group(0, &self.surface_texture_bind_group, &[]);
-                compute_pass.set_bind_group(1, &self.surface_camera_bind_group, &[]);
-                // compute_pass.dispatch_workgroups(
-                //     self.surface_texture_width.div_ceil(16),
-                //     self.surface_texture_height.div_ceil(16),
-                //     1,
-                // );
+                if self.surface_view_window_open {
+                    compute_pass.set_pipeline(&self.surface_ray_tracing_pipeline);
+                    compute_pass.set_bind_group(0, &self.surface_texture_bind_group, &[]);
+                    compute_pass.set_bind_group(1, &self.surface_camera_bind_group, &[]);
+                    compute_pass.dispatch_workgroups(
+                        self.surface_texture_width.div_ceil(16),
+                        self.surface_texture_height.div_ceil(16),
+                        1,
+                    );
+                }
             }
             queue.submit(core::iter::once(encoder.finish()));
         }
