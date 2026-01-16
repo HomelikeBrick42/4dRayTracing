@@ -76,13 +76,113 @@ Optional<Hit> hit_scene(float4 position, Rotor rotation, float3 direction)
                 let scale = 100.0;
 
                 let relative_hit_pos = hit.position - sphere.position;
-                let projected_hit_pos = float4(dot(relative_hit_pos, sphere.forward), dot(relative_hit_pos, sphere.up), dot(relative_hit_pos, sphere.right), dot(relative_hit_pos, sphere.ana));
-                let kind = sin(projected_hit_pos.x * scale) + sin(projected_hit_pos.y * scale) + sin(projected_hit_pos.z * scale) + sin(projected_hit_pos.w * scale);
+                let projected_hit_pos = float3(dot(relative_hit_pos, sphere.forward), dot(relative_hit_pos, sphere.up), dot(relative_hit_pos, sphere.right));
+                let kind = sin(projected_hit_pos.x * scale) + sin(projected_hit_pos.y * scale) + sin(projected_hit_pos.z * scale);
 
                 let normal = relative_hit_pos / sphere_radius;
                 let projected_normal = projected_hit_pos / sphere_radius;
 
-                hit.color = (projected_normal.xyz * 0.5 + 0.5) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+                hit.color = (projected_normal * 0.5 + 0.5) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+
+                return hit;
+            }
+
+            step_distance = min(step_distance, distance);
+        }
+
+        {
+            let distance = position.x + 10.0;
+
+            if (distance < 0.001)
+            {
+                var hit : Hit;
+                hit.position = position;
+                hit.distance = total_distance;
+
+                let scale = render_settings.pattern_scale;
+
+                let kind = sin(position.x * scale) + sin(position.y * scale) + sin(position.z * scale);
+                hit.color = float3(1.0, 0.0, 0.0) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+
+                return hit;
+            }
+
+            step_distance = min(step_distance, distance);
+        }
+
+        {
+            let distance = position.y + 10.0;
+
+            if (distance < 0.001)
+            {
+                var hit : Hit;
+                hit.position = position;
+                hit.distance = total_distance;
+
+                let scale = render_settings.pattern_scale;
+
+                let kind = sin(position.x * scale) + sin(position.y * scale) + sin(position.z * scale);
+                hit.color = float3(0.0, 1.0, 0.0) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+
+                return hit;
+            }
+
+            step_distance = min(step_distance, distance);
+        }
+
+        {
+            let distance = position.z + 10.0;
+
+            if (distance < 0.001)
+            {
+                var hit : Hit;
+                hit.position = position;
+                hit.distance = total_distance;
+
+                let scale = 10.0;
+
+                let kind = sin(position.x * scale) + sin(position.y * scale) + sin(position.z * scale);
+                hit.color = float3(0.0, 0.0, 1.0) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+
+                return hit;
+            }
+
+            step_distance = min(step_distance, distance);
+        }
+
+        {
+            let distance = -position.y + 10.0;
+
+            if (distance < 0.001)
+            {
+                var hit : Hit;
+                hit.position = position;
+                hit.distance = total_distance;
+
+                let scale = render_settings.pattern_scale;
+
+                let kind = sin(position.x * scale) + sin(position.y * scale) + sin(position.z * scale);
+                hit.color = float3(0.0, 1.0, 0.0) * (kind > 0.0 ? float3(1.0) : float3(0.5));
+
+                return hit;
+            }
+
+            step_distance = min(step_distance, distance);
+        }
+
+        {
+            let distance = -position.z + 10.0;
+
+            if (distance < 0.001)
+            {
+                var hit : Hit;
+                hit.position = position;
+                hit.distance = total_distance;
+
+                let scale = 10.0;
+
+                let kind = sin(position.x * scale) + sin(position.y * scale) + sin(position.z * scale);
+                hit.color = float3(0.0, 0.0, 1.0) * (kind > 0.0 ? float3(1.0) : float3(0.5));
 
                 return hit;
             }
