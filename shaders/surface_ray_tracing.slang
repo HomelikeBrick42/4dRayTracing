@@ -103,7 +103,7 @@ void walk(inout float4 position, inout Rotor rotation, float3 direction, float d
 {
     while (distance > 0.0)
     {
-        let step = min(distance, 0.1);
+        let step = min(distance, 0.5);
         distance -= step;
 
         position += rotation.rotate_direction(float4(direction * step, 0.0));
@@ -114,7 +114,7 @@ void walk(inout float4 position, inout Rotor rotation, float3 direction, float d
 void project(inout float4 position, inout Rotor rotation)
 {
     let distance = scene_sdf(position);
-    if (abs(distance) < 0.0001)
+    if (distance < 0.01)
         return;
 
     var normal = sdf::normal(scene_sdf, position);

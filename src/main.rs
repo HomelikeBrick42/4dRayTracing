@@ -619,9 +619,6 @@ impl App {
                 self.plane_height,
                 self.join_position,
             );
-            if f32::abs(distance) < 0.0001 {
-                continue;
-            }
 
             let normal = sdf::normal(
                 |p| Self::wormholes_sdf(&self.wormholes, p, self.plane_height, self.join_position),

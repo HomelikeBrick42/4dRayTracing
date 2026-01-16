@@ -29,9 +29,6 @@ impl SurfaceCamera {
 
     pub fn project(&mut self, mut f: impl FnMut(Vector4<f32>) -> f32) {
         let distance = f(self.position);
-        if f32::abs(distance) < 0.0001 {
-            return;
-        }
 
         let normal = sdf::normal(&mut f, self.position);
         self.position -= normal * distance;

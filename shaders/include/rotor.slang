@@ -158,6 +158,62 @@ struct Rotor
         return result;
     }
 
+    RotorMagnitude magnitude_squared()
+    {
+        let _0 = this.s;
+        let _1 = this.e1e2;
+        let _2 = this.e1e3;
+        let _3 = this.e1e4;
+        let _4 = this.e2e3;
+        let _5 = this.e2e4;
+        let _6 = this.e3e4;
+        let _7 = this.e1e2e3e4;
+
+        var result : RotorMagnitude;
+        result.s = (_0 * _0) + (_1 * _1) + (_2 * _2) + (_3 * _3) + (_4 * _4) + (_5 * _5) + (_6 * _6) + (_7 * _7);
+        result.e1e2e3e4 = (-2.0 * _1 * _6) + (-2.0 * _3 * _4) + (2.0 * _0 * _7) + (2.0 * _2 * _5);
+        return result;
+    }
+
+    Rotor _normalised(RotorMagnitude inverse_magnitude)
+    {
+        let _0 = this.s;
+        let _1 = this.e1e2;
+        let _2 = this.e1e3;
+        let _3 = this.e1e4;
+        let _4 = this.e2e3;
+        let _5 = this.e2e4;
+        let _6 = this.e3e4;
+        let _7 = this.e1e2e3e4;
+        let _8 = inverse_magnitude.s;
+        let _9 = inverse_magnitude.e1e2e3e4;
+
+        var result : Rotor;
+        result.s = (_0 * _8) + (_7 * _9);
+        result.e1e2 = (_1 * _8) + (-1.0 * _6 * _9);
+        result.e1e3 = (_2 * _8) + (_5 * _9);
+        result.e1e4 = (_3 * _8) + (-1.0 * _4 * _9);
+        result.e2e3 = (_4 * _8) + (-1.0 * _3 * _9);
+        result.e2e4 = (_2 * _9) + (_5 * _8);
+        result.e3e4 = (_6 * _8) + (-1.0 * _1 * _9);
+        result.e1e2e3e4 = (_0 * _9) + (_7 * _8);
+        return result;
+    }
+
+    Rotor normalised()
+    {
+        let squared_magnitude = this.magnitude_squared();
+
+        let sum = 1.0 / sqrt(squared_magnitude.s + squared_magnitude.e1e2e3e4);
+        let prod = squared_magnitude.e1e2e3e4 / (2.0 * (e1e2e3e4 * e1e2e3e4 - squared_magnitude.s * squared_magnitude.s));
+        let sqrt_part = sqrt(sum * sum - 4.0 * prod);
+
+        var inverse_magnitude : RotorMagnitude;
+        inverse_magnitude.s = (sum + sqrt_part) * 0.5;
+        inverse_magnitude.e1e2e3e4 = (sum - sqrt_part) * 0.5;
+        return this._normalised(inverse_magnitude);
+    }
+
     static Rotor from_to_vector(float4 from, float4 to)
     {
         let _0 = from.x;
@@ -177,6 +233,12 @@ struct Rotor
         result.e2e3 = (_1 * _6) + (-1.0 * _2 * _5);
         result.e2e4 = (_1 * _7) + (-1.0 * _3 * _5);
         result.e3e4 = (_2 * _7) + (-1.0 * _3 * _6);
-        return result;
+        return result.normalised();
     }
+}
+
+struct RotorMagnitude
+{
+    float s;
+    float e1e2e3e4;
 }
