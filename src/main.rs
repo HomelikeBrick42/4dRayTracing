@@ -1,4 +1,7 @@
-use crate::outside_camera::{GpuOutsideCamera, OutsideCamera};
+use crate::{
+    outside_camera::{GpuOutsideCamera, OutsideCamera},
+    surface_camera::{GpuSurfaceCamera, SurfaceCamera},
+};
 use bytemuck::NoUninit;
 use eframe::{egui, egui_wgpu::WgpuSetupCreateNew, wgpu};
 use math::{Rotor, Vector2, Vector3, Vector4};
@@ -6,6 +9,7 @@ use std::{sync::Arc, time::Instant};
 
 pub mod outside_camera;
 pub mod sdf;
+pub mod surface_camera;
 
 #[derive(Debug, Clone, Copy, NoUninit)]
 #[repr(C)]
@@ -58,11 +62,21 @@ struct App {
     outside_texture_height: u32,
     outside_texture: wgpu::TextureView,
     outside_texture_id: egui::TextureId,
-    output_texture_bind_group: wgpu::BindGroup,
+    outside_texture_bind_group: wgpu::BindGroup,
 
     outside_camera: OutsideCamera,
     outside_camera_buffer: wgpu::Buffer,
     outside_camera_bind_group: wgpu::BindGroup,
+
+    surface_texture_width: u32,
+    surface_texture_height: u32,
+    surface_texture: wgpu::TextureView,
+    surface_texture_id: egui::TextureId,
+    surface_texture_bind_group: wgpu::BindGroup,
+
+    surface_camera: SurfaceCamera,
+    surface_camera_buffer: wgpu::Buffer,
+    surface_camera_bind_group: wgpu::BindGroup,
 
     plane_height: f32,
     join_position: f32,
@@ -80,13 +94,14 @@ struct App {
     objects_bind_group_layout: wgpu::BindGroupLayout,
     objects_bind_group: wgpu::BindGroup,
 
-    ray_tracing_pipeline: wgpu::ComputePipeline,
+    outside_ray_tracing_pipeline: wgpu::ComputePipeline,
 
     cameras_window_open: bool,
     render_settings_window_open: bool,
     wormholes_window_open: bool,
     spheres_window_open: bool,
     outside_camera_window_open: bool,
+    surface_camera_window_open: bool,
 }
 
 fn output_texture_and_bind_group(
@@ -179,8 +194,6 @@ impl App {
             device, renderer, ..
         } = cc.wgpu_render_state.as_ref().unwrap();
 
-        let output_texture_width = 1;
-        let output_texture_height = 1;
         let output_texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Output Texture Bind Group Layout"),
@@ -195,15 +208,18 @@ impl App {
                     count: None,
                 }],
             });
-        let (output_texture, output_texture_bind_group) = output_texture_and_bind_group(
+
+        let outside_texture_width = 1;
+        let outside_texture_height = 1;
+        let (outside_texture, outside_texture_bind_group) = output_texture_and_bind_group(
             device,
             &output_texture_bind_group_layout,
-            output_texture_width,
-            output_texture_height,
+            outside_texture_width,
+            outside_texture_height,
         );
-        let output_texture_id = renderer.write().register_native_texture(
+        let outside_texture_id = renderer.write().register_native_texture(
             device,
-            &output_texture,
+            &outside_texture,
             wgpu::FilterMode::Nearest,
         );
 
@@ -211,7 +227,7 @@ impl App {
             x: -3.0,
             y: 0.0,
             z: 0.0,
-            w: 2.0,
+            w: 6.0,
         });
         let outside_camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Outside Camera Buffer"),
@@ -242,6 +258,55 @@ impl App {
             }],
         });
 
+        let surface_texture_width = 1;
+        let surface_texture_height = 1;
+        let (surface_texture, surface_texture_bind_group) = output_texture_and_bind_group(
+            device,
+            &output_texture_bind_group_layout,
+            surface_texture_width,
+            surface_texture_height,
+        );
+        let surface_texture_id = renderer.write().register_native_texture(
+            device,
+            &surface_texture,
+            wgpu::FilterMode::Nearest,
+        );
+
+        let surface_camera = SurfaceCamera::new(Vector4 {
+            x: 6.0,
+            y: 0.0,
+            z: 0.0,
+            w: 4.0,
+        });
+        let surface_camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Surface Camera Buffer"),
+            size: size_of::<GpuSurfaceCamera>().next_multiple_of(16) as _,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let surface_camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Surface Camera Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let surface_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Surface Camera Bind Group"),
+            layout: &surface_camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: surface_camera_buffer.as_entire_binding(),
+            }],
+        });
+
         let objects_info_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Objects Info Buffer"),
             size: size_of::<ObjectsInfo>().next_multiple_of(16) as _,
@@ -263,7 +328,7 @@ impl App {
                 z: 0.0,
             },
             throat_size: 3.0,
-            corner_radius: 1.0,
+            corner_radius: 3.0,
             padding: [0.0; 3],
         }];
         let wormholes_buffer = wormholes_buffer(device, wormholes.len());
@@ -334,13 +399,13 @@ impl App {
             &render_settings_buffer,
         );
 
-        let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
+        let outside_ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
             env!("OUT_DIR"),
-            "/shaders/ray_tracing.wgsl"
+            "/shaders/outside_ray_tracing.wgsl"
         )));
-        let ray_tracing_pipeline_layout =
+        let outside_ray_tracing_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Ray Tracing Pipeline Layout"),
+                label: Some("Outside Ray Tracing Pipeline Layout"),
                 bind_group_layouts: &[
                     &output_texture_bind_group_layout,
                     &outside_camera_bind_group_layout,
@@ -348,11 +413,11 @@ impl App {
                 ],
                 push_constant_ranges: &[],
             });
-        let ray_tracing_pipeline =
+        let outside_ray_tracing_pipeline =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Ray Tracing Pipeline"),
-                layout: Some(&ray_tracing_pipeline_layout),
-                module: &ray_tracing_shader,
+                label: Some("Outside Ray Tracing Pipeline"),
+                layout: Some(&outside_ray_tracing_pipeline_layout),
+                module: &outside_ray_tracing_shader,
                 entry_point: Some("trace_rays"),
                 compilation_options: Default::default(),
                 cache: None,
@@ -363,18 +428,28 @@ impl App {
 
             output_texture_bind_group_layout,
 
-            outside_texture_width: output_texture_width,
-            outside_texture_height: output_texture_height,
-            outside_texture: output_texture,
-            outside_texture_id: output_texture_id,
-            output_texture_bind_group,
+            outside_texture_width,
+            outside_texture_height,
+            outside_texture,
+            outside_texture_id,
+            outside_texture_bind_group,
+
+            surface_texture_width,
+            surface_texture_height,
+            surface_texture,
+            surface_texture_id,
+            surface_texture_bind_group,
 
             outside_camera,
             outside_camera_buffer,
             outside_camera_bind_group,
 
-            plane_height: 1.0,
-            join_position: 8.0,
+            surface_camera,
+            surface_camera_buffer,
+            surface_camera_bind_group,
+
+            plane_height: 4.0,
+            join_position: 10.0,
             render_settings: RenderSettings {
                 signed_distance: 0,
                 hit_offset: 0.0,
@@ -393,13 +468,14 @@ impl App {
             objects_bind_group_layout,
             objects_bind_group,
 
-            ray_tracing_pipeline,
+            outside_ray_tracing_pipeline,
 
-            cameras_window_open: false,
+            cameras_window_open: true,
             render_settings_window_open: false,
             wormholes_window_open: false,
             spheres_window_open: false,
             outside_camera_window_open: true,
+            surface_camera_window_open: true,
         }
     }
 
@@ -547,6 +623,9 @@ impl eframe::App for App {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f32()));
                 ui.collapsing("Outside Camera", |ui| {
                     self.outside_camera.ui(ui);
+                });
+                ui.collapsing("Surface Camera", |ui| {
+                    self.surface_camera.ui(ui);
                 });
             });
 
@@ -800,7 +879,7 @@ impl eframe::App for App {
                 {
                     self.outside_texture_width = width;
                     self.outside_texture_height = height;
-                    (self.outside_texture, self.output_texture_bind_group) =
+                    (self.outside_texture, self.outside_texture_bind_group) =
                         output_texture_and_bind_group(
                             device,
                             &self.output_texture_bind_group_layout,
@@ -827,6 +906,55 @@ impl eframe::App for App {
                 }
             });
 
+        egui::Window::new("Surface Camera")
+            .open(&mut self.outside_camera_window_open)
+            .frame(egui::Frame::window(&ctx.style()).inner_margin(0))
+            .show(ctx, |ui| {
+                let response = ui.allocate_response(ui.available_size(), egui::Sense::all());
+
+                let width = response.rect.width() as u32;
+                let height = response.rect.height() as u32;
+                if width > 0
+                    && height > 0
+                    && width != self.surface_texture_width
+                    && height != self.surface_texture_height
+                {
+                    self.surface_texture_width = width;
+                    self.surface_texture_height = height;
+                    (self.surface_texture, self.surface_texture_bind_group) =
+                        output_texture_and_bind_group(
+                            device,
+                            &self.output_texture_bind_group_layout,
+                            self.surface_texture_width,
+                            self.surface_texture_height,
+                        );
+                    renderer.write().update_egui_texture_from_wgpu_texture(
+                        device,
+                        &self.surface_texture,
+                        wgpu::FilterMode::Nearest,
+                        self.surface_texture_id,
+                    );
+                }
+
+                ui.painter().image(
+                    self.surface_texture_id,
+                    response.rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 1.0), egui::pos2(1.0, 0.0)),
+                    egui::Color32::WHITE,
+                );
+
+                if response.hovered() {
+                    self.surface_camera.update(ctx, dt.as_secs_f32(), |p| {
+                        Self::wormholes_sdf(
+                            &self.wormholes,
+                            p,
+                            self.plane_height,
+                            self.join_position,
+                        )
+                    });
+                }
+            });
+
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
@@ -839,6 +967,13 @@ impl eframe::App for App {
                     &self.outside_camera_buffer,
                     0,
                     bytemuck::bytes_of(&self.outside_camera.to_gpu()),
+                );
+            }
+            if self.surface_camera_window_open {
+                queue.write_buffer(
+                    &self.surface_camera_buffer,
+                    0,
+                    bytemuck::bytes_of(&self.surface_camera.to_gpu()),
                 );
             }
 
@@ -915,15 +1050,25 @@ impl eframe::App for App {
                     timestamp_writes: None,
                 });
 
-                compute_pass.set_pipeline(&self.ray_tracing_pipeline);
-                compute_pass.set_bind_group(0, &self.output_texture_bind_group, &[]);
-                compute_pass.set_bind_group(1, &self.outside_camera_bind_group, &[]);
                 compute_pass.set_bind_group(2, &self.objects_bind_group, &[]);
+
+                compute_pass.set_pipeline(&self.outside_ray_tracing_pipeline);
+                compute_pass.set_bind_group(0, &self.outside_texture_bind_group, &[]);
+                compute_pass.set_bind_group(1, &self.outside_camera_bind_group, &[]);
                 compute_pass.dispatch_workgroups(
                     self.outside_texture_width.div_ceil(16),
                     self.outside_texture_height.div_ceil(16),
                     1,
                 );
+
+                // compute_pass.set_pipeline(&self.surface_ray_tracing_pipeline);
+                compute_pass.set_bind_group(0, &self.surface_texture_bind_group, &[]);
+                compute_pass.set_bind_group(1, &self.surface_camera_bind_group, &[]);
+                // compute_pass.dispatch_workgroups(
+                //     self.surface_texture_width.div_ceil(16),
+                //     self.surface_texture_height.div_ceil(16),
+                //     1,
+                // );
             }
             queue.submit(core::iter::once(encoder.finish()));
         }

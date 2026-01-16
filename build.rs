@@ -8,6 +8,7 @@ fn main() {
 
     let out_dir = Path::new(&std::env::var("OUT_DIR").unwrap()).join("shaders/");
 
+    _ = std::fs::remove_dir_all(&out_dir);
     std::fs::create_dir_all(&out_dir).unwrap();
 
     let mut compilations = vec![];
